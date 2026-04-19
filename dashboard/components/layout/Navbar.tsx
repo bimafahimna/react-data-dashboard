@@ -45,14 +45,18 @@ export default function Navbar() {
       </ul>
 
       <div className="flex gap-4">
-        <button className="px-4 py-2 font-semibold text-blue-600 bg-transparent rounded-md hover:bg-gray-100 
-        transition-colors duration-300 cursor-pointer">
-          Login
-        </button>
-        <button className="px-6 py-2 font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 active:scale-95 
-        transition-all duration-300 cursor-pointer">
-          Sign Up
-        </button>
+        <Link href="/login">
+          <button className="px-4 py-2 font-semibold text-blue-600 bg-transparent rounded-md hover:bg-gray-100 
+          transition-colors duration-300 cursor-pointer">
+            Login
+          </button>
+        </Link>
+        <Link href="/signup">
+          <button className="px-6 py-2 font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 active:scale-95 
+          transition-all duration-300 cursor-pointer">
+            Sign Up
+          </button>
+        </Link>
       </div>
 
     </nav>
