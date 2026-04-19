@@ -16,6 +16,9 @@ export const metadata: Metadata = {
   title: "Spendser | Data Dashboard",
   description: "Real-time spending insights and financial management dashboard.",
   keywords: ["dashboard", "finance", "spending", "data visualization", "nextjs"],
+  icons: {
+    icon: "/line-graph.svg",
+  },
 };
 
 export default function RootLayout({
