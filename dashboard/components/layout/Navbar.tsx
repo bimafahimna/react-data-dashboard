@@ -1,20 +1,14 @@
 import React from 'react';
 import Link from 'next/link';
 
-/**
- * A basic, structured Navbar component using Tailwind CSS.
- * It is separated into three logical sections: Brand, Links, and Actions.
- */
 export default function Navbar() {
   return (
     <nav className="sticky top-0 z-50 flex items-center justify-between px-8 py-4 bg-white shadow-md font-sans">
 
-      {/* 1. Brand or Logo Section */}
       <div className="text-2xl font-bold text-gray-900">
-        <Link href="/">MyBrand</Link>
+        <Link href="/">Spendser</Link>
       </div>
 
-      {/* 2. Navigation Links Section */}
       <ul className="flex m-0 p-0 list-none gap-8">
         <li>
           <Link
@@ -50,12 +44,13 @@ export default function Navbar() {
         </li>
       </ul>
 
-      {/* 3. Action Buttons Section (e.g., Auth) */}
       <div className="flex gap-4">
-        <button className="px-4 py-2 font-semibold text-blue-600 bg-transparent rounded-md hover:bg-gray-100 transition-colors duration-300">
+        <button className="px-4 py-2 font-semibold text-blue-600 bg-transparent rounded-md hover:bg-gray-100 
+        transition-colors duration-300 cursor-pointer">
           Login
         </button>
-        <button className="px-6 py-2 font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 active:scale-95 transition-all duration-300">
+        <button className="px-6 py-2 font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 active:scale-95 
+        transition-all duration-300 cursor-pointer">
           Sign Up
         </button>
       </div>
