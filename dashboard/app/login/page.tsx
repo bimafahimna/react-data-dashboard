@@ -1,60 +1,66 @@
 import React from "react";
 import Link from "next/link";
-import "@/styles/auth.css";
 
 const Login = () => {
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <div className="auth-header">
-          <h1>Welcome Back</h1>
-          <p>Please enter your details to sign in</p>
+    <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50">
+      <div className="w-full max-w-[440px] bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-200 p-10 transition-all duration-300">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">Welcome Back</h1>
+          <p className="text-slate-500 text-[15px]">Please enter your details to sign in</p>
         </div>
 
-        <div className="auth-social-group">
-          <button className="auth-social-button">
-            <span>Google</span>
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <button className="flex items-center justify-center gap-2 py-2.5 border border-slate-200 rounded-lg bg-white font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+            <span className="text-sm">Google</span>
           </button>
-          <button className="auth-social-button">
-            <span>Apple</span>
+          <button className="flex items-center justify-center gap-2 py-2.5 border border-slate-200 rounded-lg bg-white font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+            <span className="text-sm">Apple</span>
           </button>
         </div>
 
-        <div className="auth-divider">or sign in with email</div>
+        <div className="relative flex items-center justify-center mb-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-slate-200"></div>
+          </div>
+          <span className="relative px-3 bg-white text-xs font-semibold uppercase tracking-wider text-slate-400">
+            or sign in with email
+          </span>
+        </div>
 
-        <form>
-          <div className="auth-form-group">
-            <label className="auth-label">Email Address</label>
+        <form className="space-y-5">
+          <div>
+            <label className="block text-sm font-semibold text-slate-800 mb-1.5 ml-0.5">Email Address</label>
             <input
               type="email"
-              className="auth-input"
+              className="w-full px-4 py-3 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
               placeholder="name@company.com"
               required
             />
           </div>
 
-          <div className="auth-form-group">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <label className="auth-label">Password</label>
-              <Link href="#" className="forgot-password">
+          <div>
+            <div className="flex justify-between items-center mb-1.5 ml-0.5">
+              <label className="text-sm font-semibold text-slate-800">Password</label>
+              <Link href="#" className="text-xs font-semibold text-indigo-600 hover:underline">
                 Forgot password?
               </Link>
             </div>
             <input
               type="password"
-              className="auth-input"
+              className="w-full px-4 py-3 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
               placeholder="••••••••"
               required
             />
           </div>
 
-          <button type="submit" className="auth-button">
+          <button type="submit" className="w-full py-3 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 hover:-translate-y-0.5 active:translate-y-0 transition-all shadow-md shadow-indigo-100 mt-2">
             Sign In
           </button>
         </form>
 
-        <div className="auth-footer">
-          Don&apos;t have an account? <Link href="/signup">Create account</Link>
+        <div className="text-center mt-7 text-sm text-slate-500">
+          Don&apos;t have an account? <Link href="/signup" className="text-indigo-600 font-bold hover:underline">Create account</Link>
         </div>
       </div>
     </div>
