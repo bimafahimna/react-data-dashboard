@@ -7,7 +7,7 @@ export default function Navbar() {
     <nav className="sticky top-0 z-50 flex items-center justify-between px-8 py-4 bg-white shadow-md font-sans">
 
       <div className="text-2xl font-bold text-gray-900">
-        <Link href="/">Spendser</Link>
+        <Link href="/">InsightHub</Link>
       </div>
 
       <ul className="flex m-0 p-0 list-none gap-8">

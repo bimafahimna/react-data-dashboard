@@ -4,23 +4,32 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Icons } from "@/components/ui/Icons";
+import { loginUser } from "@/app/actions/auth";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+    setSuccess(null);
     setIsLoading(true);
-    
-    // Simulate API call
-    console.log("Login Attempt:", { email, password });
-    
-    setTimeout(() => {
-      setIsLoading(false);
-      alert("Login logic triggered! Check console for details.");
-    }, 1000);
+
+    const result = await loginUser({ email, password });
+
+    setIsLoading(false);
+
+    if (result.success) {
+      setSuccess(result.message);
+      // Redirect or show dashboard 
+      // window.location.href = "/dashboard";
+    } else {
+      setError(result.message);
+    }
   };
 
   return (
@@ -80,6 +89,18 @@ const Login = () => {
               required
             />
           </div>
+
+          {/* Feedback Messages */}
+          {error && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5">
+              {error}
+            </p>
+          )}
+          {success && (
+            <p className="text-sm text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2.5">
+              {success}
+            </p>
+          )}
 
           <Button 
             type="submit" 
