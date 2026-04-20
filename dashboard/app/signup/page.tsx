@@ -14,11 +14,11 @@ const Signup = () => {
 
         <div className="grid grid-cols-2 gap-3 mb-6">
           <Button type="button" variant="social" className="w-full">
-            <Icons.Google className="w-5 h-5" />
+            <Icons.Google className="w-5 h-5 pr-1" />
             Google
           </Button>
           <Button type="button" variant="social" className="w-full">
-            <Icons.Apple className="w-5 h-5 text-black" />
+            <Icons.Apple className="w-5 h-5 text-black pr-0.5" />
             Apple
           </Button>
         </div>

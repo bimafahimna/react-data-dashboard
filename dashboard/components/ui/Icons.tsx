@@ -1,4 +1,6 @@
 import React from "react";
+import googleIcon from "@/assets/icons/google-icon-logo-svgrepo-com.svg";
+import appleIcon from "@/assets/icons/apple-black-logo-svgrepo-com.svg";
 
 interface IconProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   className?: string;
@@ -7,7 +9,7 @@ interface IconProps extends React.ImgHTMLAttributes<HTMLImageElement> {
 export const Icons = {
   Google: ({ className, ...props }: IconProps) => (
     <img
-      src="/social-icon/google-icon-logo-svgrepo-com.svg"
+      src={googleIcon.src}
       alt="Google"
       className={className}
       {...props}
@@ -15,7 +17,7 @@ export const Icons = {
   ),
   Apple: ({ className, ...props }: IconProps) => (
     <img
-      src="/social-icon/apple-black-logo-svgrepo-com.svg"
+      src={appleIcon.src}
       alt="Apple"
       className={className}
       {...props}
