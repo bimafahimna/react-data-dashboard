@@ -1,9 +1,36 @@
-import React from "react";
+"use client";
+
+import React, { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Icons } from "@/components/ui/Icons";
 
 const Signup = () => {
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (password !== confirmPassword) {
+      alert("Passwords do not match!");
+      return;
+    }
+
+    setIsLoading(true);
+
+    // Simulate API call
+    console.log("Signup Attempt:", { fullName, email, password });
+
+    setTimeout(() => {
+      setIsLoading(false);
+      alert("Account created successfully! Check console for details.");
+    }, 1000);
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50">
       <div className="w-full max-w-[440px] bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-200 p-10 transition-all duration-300">
@@ -32,11 +59,13 @@ const Signup = () => {
           </span>
         </div>
 
-        <form className="space-y-4">
+        <form className="space-y-4" onSubmit={handleSubmit}>
           <div>
             <label className="block text-sm font-semibold text-slate-800 mb-1.5 ml-0.5">Full Name</label>
             <input
               type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
               className="w-full px-4 py-3 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
               placeholder="John Doe"
               required
@@ -47,6 +76,8 @@ const Signup = () => {
             <label className="block text-sm font-semibold text-slate-800 mb-1.5 ml-0.5">Email Address</label>
             <input
               type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="w-full px-4 py-3 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
               placeholder="name@company.com"
               required
@@ -57,6 +88,8 @@ const Signup = () => {
             <label className="block text-sm font-semibold text-slate-800 mb-1.5 ml-0.5">Password</label>
             <input
               type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-3 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
               placeholder="••••••••"
               required
@@ -67,6 +100,8 @@ const Signup = () => {
             <label className="block text-sm font-semibold text-slate-800 mb-1.5 ml-0.5">Confirm Password</label>
             <input
               type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
               className="w-full px-4 py-3 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
               placeholder="••••••••"
               required
@@ -79,8 +114,13 @@ const Signup = () => {
             </p>
           </div>
 
-          <Button type="submit" variant="primary" className="w-full mt-2 py-3">
-            Create Account
+          <Button
+            type="submit"
+            variant="primary"
+            className="w-full mt-2 py-3"
+            disabled={isLoading}
+          >
+            {isLoading ? "Creating Account..." : "Create Account"}
           </Button>
         </form>
 

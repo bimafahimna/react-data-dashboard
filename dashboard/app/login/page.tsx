@@ -1,9 +1,28 @@
-import React from "react";
+"use client";
+
+import React, { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Icons } from "@/components/ui/Icons";
 
 const Login = () => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    
+    // Simulate API call
+    console.log("Login Attempt:", { email, password });
+    
+    setTimeout(() => {
+      setIsLoading(false);
+      alert("Login logic triggered! Check console for details.");
+    }, 1000);
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50">
       <div className="w-full max-w-[440px] bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-200 p-10 transition-all duration-300">
@@ -32,11 +51,13 @@ const Login = () => {
           </span>
         </div>
 
-        <form className="space-y-5">
+        <form className="space-y-5" onSubmit={handleSubmit}>
           <div>
             <label className="block text-sm font-semibold text-slate-800 mb-1.5 ml-0.5">Email Address</label>
             <input
               type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="w-full px-4 py-3 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
               placeholder="name@company.com"
               required
@@ -52,14 +73,21 @@ const Login = () => {
             </div>
             <input
               type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-3 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
               placeholder="••••••••"
               required
             />
           </div>
 
-          <Button type="submit" variant="primary" className="w-full mt-2 py-3">
-            Sign In
+          <Button 
+            type="submit" 
+            variant="primary" 
+            className="w-full mt-2 py-3"
+            disabled={isLoading}
+          >
+            {isLoading ? "Signing in..." : "Sign In"}
           </Button>
         </form>
 
