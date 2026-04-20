@@ -1,5 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
+import { Button } from '@/components/ui/Button';
 
 export default function Navbar() {
   return (
@@ -46,16 +47,10 @@ export default function Navbar() {
 
       <div className="flex gap-4">
         <Link href="/login">
-          <button className="px-4 py-2 font-semibold text-blue-600 bg-transparent rounded-md hover:bg-gray-100 
-          transition-colors duration-300 cursor-pointer">
-            Login
-          </button>
+          <Button variant="ghost">Login</Button>
         </Link>
         <Link href="/signup">
-          <button className="px-6 py-2 font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 active:scale-95 
-          transition-all duration-300 cursor-pointer">
-            Sign Up
-          </button>
+          <Button variant="primary">Sign Up</Button>
         </Link>
       </div>
 

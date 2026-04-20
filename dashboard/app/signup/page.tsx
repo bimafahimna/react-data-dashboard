@@ -1,5 +1,7 @@
 import React from "react";
 import Link from "next/link";
+import { Button } from "@/components/ui/Button";
+import { Icons } from "@/components/ui/Icons";
 
 const Signup = () => {
   return (
@@ -11,12 +13,14 @@ const Signup = () => {
         </div>
 
         <div className="grid grid-cols-2 gap-3 mb-6">
-          <button className="flex items-center justify-center gap-2 py-2.5 border border-slate-200 rounded-lg bg-white font-medium text-slate-700 hover:bg-slate-50 transition-colors">
-            <span className="text-sm">Google</span>
-          </button>
-          <button className="flex items-center justify-center gap-2 py-2.5 border border-slate-200 rounded-lg bg-white font-medium text-slate-700 hover:bg-slate-50 transition-colors">
-            <span className="text-sm">Apple</span>
-          </button>
+          <Button type="button" variant="social" className="w-full">
+            <Icons.Google className="w-5 h-5" />
+            Google
+          </Button>
+          <Button type="button" variant="social" className="w-full">
+            <Icons.Apple className="w-5 h-5 text-black" />
+            Apple
+          </Button>
         </div>
 
         <div className="relative flex items-center justify-center mb-6">
@@ -75,9 +79,9 @@ const Signup = () => {
             </p>
           </div>
 
-          <button type="submit" className="w-full py-3 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 hover:-translate-y-0.5 active:translate-y-0 transition-all shadow-md shadow-indigo-100 mt-2">
+          <Button type="submit" variant="primary" className="w-full mt-2 py-3">
             Create Account
-          </button>
+          </Button>
         </form>
 
         <div className="text-center mt-7 text-sm text-slate-500">
