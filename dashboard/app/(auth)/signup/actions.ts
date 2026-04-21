@@ -1,7 +1,9 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { setSession } from "@/lib/session";
 import bcryptjs from "bcryptjs";
+import { redirect } from "next/navigation";
 
 export type AuthResult = {
   success: boolean;
@@ -46,7 +48,7 @@ export async function signupUser(data: {
 
   const hashedPassword = await bcryptjs.hash(password, (Number(process.env.PASSWORD_HASH_SALT) || 10));
 
-  await prisma.user.create({
+  const user = await prisma.user.create({
     data: {
       fullName,
       email,
@@ -54,7 +56,9 @@ export async function signupUser(data: {
     },
   });
 
-  return { success: true, message: "Account created successfully!" };
+  await setSession({ id: user.id, email: user.email, fullName: user.fullName });
+
+  redirect("/home");
 }
 
 export async function signupAction(prevState: any, formData: FormData): Promise<AuthResult> {

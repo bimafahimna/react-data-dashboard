@@ -2,6 +2,8 @@
 
 import { prisma } from "@/lib/prisma";
 import bcryptjs from "bcryptjs";
+import { setSession } from "@/lib/session";
+import { redirect } from "next/navigation";
 
 export type AuthResult = {
   email?: string;
@@ -33,7 +35,9 @@ export async function loginUser(data: {
     return { success: false, message: "Invalid email or password." };
   }
 
-  return { success: true, message: "Login successful!" };
+  await setSession({ id: user.id, email: user.email, fullName: user.fullName });
+  
+  redirect("/dashboard");
 }
 
 export async function loginAction(prevState: any, formData: FormData): Promise<AuthResult> {
