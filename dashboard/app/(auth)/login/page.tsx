@@ -19,7 +19,7 @@ const Login = () => {
 
         <div className="grid grid-cols-2 gap-3 mb-6">
           <Button type="button" variant="social" className="w-full">
-            <Icons.Google className="w-5 h-5" />
+            <Icons.Google className="w-5 h-5 pr-[2.5px]" />
             Google
           </Button>
           <Button type="button" variant="social" className="w-full">
