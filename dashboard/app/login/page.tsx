@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Icons } from "@/components/ui/Icons";
-import { loginUser } from "@/app/actions/auth";
+import { loginUser } from "./actions";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -102,9 +102,9 @@ const Login = () => {
             </p>
           )}
 
-          <Button 
-            type="submit" 
-            variant="primary" 
+          <Button
+            type="submit"
+            variant="primary"
             className="w-full mt-2 py-3"
             disabled={isLoading}
           >

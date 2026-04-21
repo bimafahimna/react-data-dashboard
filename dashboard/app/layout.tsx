@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "InsightHub | Your Store Dashboard",
-  description: "Real-time spending insights and financial management dashboard.",
-  keywords: ["dashboard", "finance", "spending", "data visualization", "nextjs"],
+  description: "Real-time market insights and store management dashboard.",
+  keywords: ["dashboard", "finance", "market", "data visualization", "nextjs"],
   icons: {
     icon: "/line-graph.svg",
   },

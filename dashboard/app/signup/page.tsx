@@ -1,47 +1,21 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Icons } from "@/components/ui/Icons";
-import { signupUser } from "@/app/actions/auth";
+import { signupAction } from "./actions";
+import { useActionState as useFormState } from "react";
 
 const Signup = () => {
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const [state, formAction, isPending] = useFormState(signupAction, null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccess(null);
-
-    if (password !== confirmPassword) {
-      setError("Passwords do not match!");
-      return;
+  useEffect(() => {
+    if (state?.success) {
+      formRef.current?.reset();
     }
-
-    setIsLoading(true);
-
-    const result = await signupUser({ fullName, email, password });
-
-    setIsLoading(false);
-
-    if (result.success) {
-      setSuccess(result.message);
-      // Reset the form fields
-      setFullName("");
-      setEmail("");
-      setPassword("");
-      setConfirmPassword("");
-    } else {
-      setError(result.message);
-    }
-  };
+  }, [state?.success]);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50">
@@ -71,13 +45,12 @@ const Signup = () => {
           </span>
         </div>
 
-        <form className="space-y-4" onSubmit={handleSubmit}>
+        <form action={formAction} className="space-y-4" ref={formRef}>
           <div>
             <label className="block text-sm font-semibold text-slate-800 mb-1.5 ml-0.5">Full Name</label>
             <input
               type="text"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
+              name="fullName"
               className="w-full px-4 py-3 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
               placeholder="John Doe"
               required
@@ -88,8 +61,7 @@ const Signup = () => {
             <label className="block text-sm font-semibold text-slate-800 mb-1.5 ml-0.5">Email Address</label>
             <input
               type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              name="email"
               className="w-full px-4 py-3 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
               placeholder="name@company.com"
               required
@@ -100,8 +72,7 @@ const Signup = () => {
             <label className="block text-sm font-semibold text-slate-800 mb-1.5 ml-0.5">Password</label>
             <input
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              name="password"
               className="w-full px-4 py-3 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
               placeholder="••••••••"
               required
@@ -112,8 +83,7 @@ const Signup = () => {
             <label className="block text-sm font-semibold text-slate-800 mb-1.5 ml-0.5">Confirm Password</label>
             <input
               type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              name="confirmPassword"
               className="w-full px-4 py-3 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
               placeholder="••••••••"
               required
@@ -126,24 +96,23 @@ const Signup = () => {
             </p>
           </div>
 
-          {/* Error / Success Feedback */}
-          {error && (
+          {state && !state.success && (
             <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5">
-              {error}
+              {state.message}
             </p>
           )}
-          {success && (
+          {state && state.success && (
             <p className="text-sm text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2.5">
-              {success}
+              {state.message}
             </p>
           )}
           <Button
             type="submit"
             variant="primary"
             className="w-full mt-2 py-3"
-            disabled={isLoading}
+            disabled={isPending}
           >
-            {isLoading ? "Creating Account..." : "Create Account"}
+            {isPending ? "Creating Account..." : "Create Account"}
           </Button>
         </form>
 
