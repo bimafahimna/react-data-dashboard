@@ -1,36 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Icons } from "@/components/ui/Icons";
-import { loginUser } from "./actions";
+import { loginAction } from "./actions";
+import { useActionState } from "react";
 
 const Login = () => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccess(null);
-    setIsLoading(true);
-
-    const result = await loginUser({ email, password });
-
-    setIsLoading(false);
-
-    if (result.success) {
-      setSuccess(result.message);
-      // Redirect or show dashboard 
-      // window.location.href = "/dashboard";
-    } else {
-      setError(result.message);
-    }
-  };
+  const [state, formAction, isPending] = useActionState(loginAction, null)
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50">
@@ -60,13 +37,12 @@ const Login = () => {
           </span>
         </div>
 
-        <form className="space-y-5" onSubmit={handleSubmit}>
+        <form action={formAction} className="space-y-5">
           <div>
             <label className="block text-sm font-semibold text-slate-800 mb-1.5 ml-0.5">Email Address</label>
             <input
               type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              name="email"
               className="w-full px-4 py-3 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
               placeholder="name@company.com"
               required
@@ -74,31 +50,29 @@ const Login = () => {
           </div>
 
           <div>
-            <div className="flex justify-between items-center mb-1.5 ml-0.5">
-              <label className="text-sm font-semibold text-slate-800">Password</label>
-              <Link href="#" className="text-xs font-semibold text-indigo-600 hover:underline">
-                Forgot password?
-              </Link>
-            </div>
+            <label className="block text-sm font-semibold text-slate-800 mb-1.5 ml-0.5">Password</label>
             <input
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              name="password"
               className="w-full px-4 py-3 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-400"
               placeholder="••••••••"
               required
             />
+            <div className="flex justify-end items-center mt-1.5 ml-0.5">
+              <Link href="#" className="text-xs font-semibold text-indigo-600 hover:underline">
+                Forgot password?
+              </Link>
+            </div>
           </div>
 
-          {/* Feedback Messages */}
-          {error && (
+          {state && !state.success && (
             <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5">
-              {error}
+              {state.message}
             </p>
           )}
-          {success && (
+          {state && state.success && (
             <p className="text-sm text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2.5">
-              {success}
+              {state.message}
             </p>
           )}
 
@@ -106,9 +80,9 @@ const Login = () => {
             type="submit"
             variant="primary"
             className="w-full mt-2 py-3"
-            disabled={isLoading}
+            disabled={isPending}
           >
-            {isLoading ? "Signing in..." : "Sign In"}
+            {isPending ? "Signing in..." : "Sign In"}
           </Button>
         </form>
 

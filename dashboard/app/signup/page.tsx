@@ -5,11 +5,11 @@ import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Icons } from "@/components/ui/Icons";
 import { signupAction } from "./actions";
-import { useActionState as useFormState } from "react";
+import { useActionState } from "react";
 
 const Signup = () => {
   const formRef = useRef<HTMLFormElement>(null);
-  const [state, formAction, isPending] = useFormState(signupAction, null);
+  const [state, formAction, isPending] = useActionState(signupAction, null);
 
   useEffect(() => {
     if (state?.success) {

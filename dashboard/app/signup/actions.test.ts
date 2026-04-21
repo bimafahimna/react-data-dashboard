@@ -20,100 +20,130 @@ vi.mock("bcryptjs", () => ({
 
 // -------------------------------------------------------------------
 
+const MOCK_EXISTING_USER = {
+  id: "existing-id",
+  fullName: "Existing User",
+  email: "taken@test.com",
+  password: "hashed",
+  accountId: 1,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
 describe("signupUser", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   describe("validation", () => {
-    it("returns error when fullName is missing", async () => {
-      const result = await signupUser({ fullName: "", email: "test@test.com", password: "password123" });
-      expect(result).toEqual({ success: false, message: "All fields are required." });
-    });
-
-    it("returns error when email is missing", async () => {
-      const result = await signupUser({ fullName: "John Doe", email: "", password: "password123" });
-      expect(result).toEqual({ success: false, message: "All fields are required." });
-    });
-
-    it("returns error when password is missing", async () => {
-      const result = await signupUser({ fullName: "John Doe", email: "test@test.com", password: "" });
-      expect(result).toEqual({ success: false, message: "All fields are required." });
-    });
-
-    it("returns error when password is shorter than 8 characters", async () => {
-      const result = await signupUser({ fullName: "John Doe", email: "test@test.com", password: "pass" });
-      expect(result).toEqual({ success: false, message: "Password must be at least 8 characters." });
+    it.each([
+      {
+        name: "fullName is empty",
+        input: { fullName: "", email: "test@test.com", password: "password123" },
+        expected: { success: false, message: "All fields are required." },
+      },
+      {
+        name: "email is empty",
+        input: { fullName: "John Doe", email: "", password: "password123" },
+        expected: { success: false, message: "All fields are required." },
+      },
+      {
+        name: "password is empty",
+        input: { fullName: "John Doe", email: "test@test.com", password: "" },
+        expected: { success: false, message: "All fields are required." },
+      },
+      {
+        name: "password is shorter than 8 characters",
+        input: { fullName: "John Doe", email: "test@test.com", password: "pass" },
+        expected: { success: false, message: "Password must be at least 8 characters." },
+      },
+    ])("returns error when $name", async ({ input, expected }) => {
+      const result = await signupUser(input);
+      expect(result).toEqual(expected);
     });
   });
 
   describe("database checks", () => {
-    it("returns error when email already exists", async () => {
-      vi.mocked(prisma.user.findUnique).mockResolvedValue({
-        id: "existing-id",
-        fullName: "Existing User",
-        email: "taken@test.com",
-        password: "hashed",
-        accountId: 1,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
+    it.each([
+      {
+        name: "email already exists",
+        mockFindUnique: MOCK_EXISTING_USER,
+        mockCreate: null,
+        input: { fullName: "John Doe", email: "taken@test.com", password: "password123" },
+        expected: { success: false, message: "An account with this email already exists." },
+        expectCreate: false,
+      },
+      {
+        name: "all data is valid",
+        mockFindUnique: null,
+        mockCreate: {} as any,
+        input: { fullName: "John Doe", email: "new@test.com", password: "password123" },
+        expected: { success: true, message: "Account created successfully!" },
+        expectCreate: true,
+      },
+    ])("$name", async ({ mockFindUnique, mockCreate, input, expected, expectCreate }) => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(mockFindUnique);
+      if (mockCreate !== null) {
+        vi.mocked(prisma.user.create).mockResolvedValue(mockCreate);
+      }
 
-      const result = await signupUser({ fullName: "John Doe", email: "taken@test.com", password: "password123" });
-      expect(result).toEqual({ success: false, message: "An account with this email already exists." });
-    });
+      const result = await signupUser(input);
 
-    it("creates a new user and returns success when all data is valid", async () => {
-      vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
-      vi.mocked(prisma.user.create).mockResolvedValue({} as any);
-
-      const result = await signupUser({ fullName: "John Doe", email: "new@test.com", password: "password123" });
-
-      expect(prisma.user.create).toHaveBeenCalledOnce();
-      expect(result).toEqual({ success: true, message: "Account created successfully!" });
+      if (expectCreate) {
+        expect(prisma.user.create).toHaveBeenCalledOnce();
+      }
+      expect(result).toEqual(expected);
     });
   });
 });
 
 // -------------------------------------------------------------------
 
+const makeFormData = (fields: Record<string, string>) => {
+  const formData = new FormData();
+  for (const [key, value] of Object.entries(fields)) {
+    formData.append(key, value);
+  }
+  return formData;
+};
+
 describe("signupAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  const makeFormData = (fields: Record<string, string>) => {
-    const formData = new FormData();
-    for (const [key, value] of Object.entries(fields)) {
-      formData.append(key, value);
+  it.each([
+    {
+      name: "passwords do not match",
+      fields: {
+        fullName: "John Doe",
+        email: "test@test.com",
+        password: "password123",
+        confirmPassword: "different456",
+      },
+      mockFindUnique: null,
+      mockCreate: null,
+      expected: { success: false, message: "Passwords do not match!" },
+    },
+    {
+      name: "passwords match and user is new",
+      fields: {
+        fullName: "John Doe",
+        email: "new@test.com",
+        password: "password123",
+        confirmPassword: "password123",
+      },
+      mockFindUnique: null,
+      mockCreate: {} as any,
+      expected: { success: true, message: "Account created successfully!" },
+    },
+  ])("returns correct result when $name", async ({ fields, mockFindUnique, mockCreate, expected }) => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(mockFindUnique);
+    if (mockCreate !== null) {
+      vi.mocked(prisma.user.create).mockResolvedValue(mockCreate);
     }
-    return formData;
-  };
 
-  it("returns error when passwords do not match", async () => {
-    const formData = makeFormData({
-      fullName: "John Doe",
-      email: "test@test.com",
-      password: "password123",
-      confirmPassword: "different456",
-    });
-
-    const result = await signupAction(null, formData);
-    expect(result).toEqual({ success: false, message: "Passwords do not match!" });
-  });
-
-  it("calls signupUser when passwords match", async () => {
-    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
-    vi.mocked(prisma.user.create).mockResolvedValue({} as any);
-
-    const formData = makeFormData({
-      fullName: "John Doe",
-      email: "new@test.com",
-      password: "password123",
-      confirmPassword: "password123",
-    });
-
-    const result = await signupAction(null, formData);
-    expect(result).toEqual({ success: true, message: "Account created successfully!" });
+    const result = await signupAction(null, makeFormData(fields));
+    expect(result).toEqual(expected);
   });
 });
