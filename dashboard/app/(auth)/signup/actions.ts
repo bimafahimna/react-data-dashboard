@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { setSession } from "@/lib/session";
+import { setSessionTokens } from "@/lib/session";
 import bcryptjs from "bcryptjs";
 import { redirect } from "next/navigation";
 
@@ -56,8 +56,7 @@ export async function signupUser(data: {
     },
   });
 
-  await setSession({ id: user.id, email: user.email, fullName: user.fullName });
-
+  await setSessionTokens({ email: user.email, accountId: user.accountId });
   redirect("/home");
 }
 
@@ -71,5 +70,5 @@ export async function signupAction(prevState: any, formData: FormData): Promise<
     return { success: false, message: "Passwords do not match!" };
   }
 
-  return signupUser({ fullName, email, password });
+  return signupUser({ fullName, email, password, ...prevState });
 }

@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import bcryptjs from "bcryptjs";
-import { setSession } from "@/lib/session";
+import { setSessionTokens } from "@/lib/session";
 import { redirect } from "next/navigation";
 
 export type AuthResult = {
@@ -35,8 +35,7 @@ export async function loginUser(data: {
     return { success: false, message: "Invalid email or password." };
   }
 
-  await setSession({ id: user.id, email: user.email, fullName: user.fullName });
-  
+  await setSessionTokens({ email: user.email, accountId: user.accountId });
   redirect("/dashboard");
 }
 
