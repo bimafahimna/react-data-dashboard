@@ -1,8 +1,13 @@
+'use client'
+
 import React from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
+import { logoutAction } from './action';
 
-export default function Navbar() {
+export default function Navbar(props: { isLoggedIn: boolean }) {
+  const session = props.isLoggedIn;
+
   return (
     <nav className="sticky top-0 z-50 flex items-center justify-between px-8 py-4 bg-white shadow-md font-sans">
 
@@ -45,14 +50,22 @@ export default function Navbar() {
         </li>
       </ul>
 
-      <div className="flex gap-4">
-        <Link href="/login">
-          <Button variant="ghost">Login</Button>
-        </Link>
-        <Link href="/signup">
-          <Button variant="primary">Sign Up</Button>
-        </Link>
-      </div>
+      {session ? (
+        <div className="flex gap-4">
+          <form action={logoutAction}>
+            <Button variant="ghost" type="submit">Logout</Button>
+          </form>
+        </div>
+      ) : (
+        <div className="flex gap-4">
+          <Link href="/login">
+            <Button variant="ghost">Login</Button>
+          </Link>
+          <Link href="/signup">
+            <Button variant="primary">Sign Up</Button>
+          </Link>
+        </div>
+      )}
 
     </nav>
   );

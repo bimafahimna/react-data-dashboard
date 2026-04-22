@@ -1,9 +1,12 @@
 import React from "react";
-import Navbar from "./Navbar";
+import Navbar from "./Navbar/Navbar";
+import { getAccessToken } from "@/lib/session";
 
-const Header = () => {
+const Header = async () => {
+  const token = await getAccessToken()
+
   return <header>
-    <Navbar />
+    <Navbar isLoggedIn={token ? true : false} />
   </header>
 };
 
