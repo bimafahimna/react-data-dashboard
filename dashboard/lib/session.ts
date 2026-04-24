@@ -2,7 +2,7 @@ import { JWTPayload, SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import ms, { StringValue } from "ms";
 
-const secretKey = process.env.SESSION_SECRET || "default_secret_key_change_me";
+const secretKey = process.env.SECRET_KEY || "default_secret_key_change_me";
 const algorithm = process.env.JWT_ALGORITHM || "HS256";
 const key = new TextEncoder().encode(secretKey);
 
