@@ -12,7 +12,8 @@ vi.mock("next/server", () => ({
 }));
 
 vi.mock("@/lib/session", () => ({
-    decrypt: vi.fn()
+    decrypt: vi.fn(),
+    accessTokenKey: "session"
 }));
 
 describe("authMiddleware", () => {

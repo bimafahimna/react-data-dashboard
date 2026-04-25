@@ -21,8 +21,15 @@ export async function loginUser(data: {
     return { success: false, message: "Email and password are required." };
   }
 
+  const normalizedEmail = email.trim().toLowerCase();
+
   const user = await prisma.user.findUnique({
-    where: { email },
+    where: { email: normalizedEmail },
+    select: {
+      password: true,
+      email: true,
+      accountId: true,
+    },
   });
 
   if (!user) {

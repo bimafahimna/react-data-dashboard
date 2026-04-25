@@ -1,4 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+
+
+// Mock session and next/navigation before importing actions
+vi.mock("@/lib/session", () => ({
+  setSessionTokens: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("next/navigation", () => ({
+  redirect: vi.fn(),
+}));
+
 import { prisma } from "@/lib/prisma";
 import { signupUser, signupAction } from "./actions";
 
