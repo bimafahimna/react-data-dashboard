@@ -23,14 +23,20 @@ export async function loginUser(data: {
 
   const normalizedEmail = email.trim().toLowerCase();
 
-  const user = await prisma.user.findUnique({
-    where: { email: normalizedEmail },
-    select: {
-      password: true,
-      email: true,
-      accountId: true,
-    },
-  });
+  let user;
+  try {
+    user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: {
+        password: true,
+        email: true,
+        accountId: true,
+      },
+    });
+  } catch (error) {
+    console.error("Database error during login:", error);
+    return { success: false, message: "An error occurred. Please try again later." };
+  }
 
   if (!user) {
     return { success: false, message: "Invalid email or password." };
