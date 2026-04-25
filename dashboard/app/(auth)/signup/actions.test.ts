@@ -15,10 +15,7 @@ import { signupUser, signupAction } from "./actions";
 // --- Mock external dependencies ---
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    user: {
-      findUnique: vi.fn(),
-      create: vi.fn(),
-    },
+    $transaction: vi.fn(),
   },
 }));
 
@@ -86,21 +83,25 @@ describe("signupUser", () => {
       {
         name: "all data is valid",
         mockFindUnique: null,
-        mockCreate: {} as any,
+        mockCreate: { id: "new-id", email: "new@test.com", accountId: 1 } as any,
         input: { fullName: "John Doe", email: "new@test.com", password: "password123" },
         expected: { success: true, message: "Account created successfully!" },
         expectCreate: true,
       },
     ])("$name", async ({ mockFindUnique, mockCreate, input, expected, expectCreate }) => {
-      vi.mocked(prisma.user.findUnique).mockResolvedValue(mockFindUnique);
-      if (mockCreate !== null) {
-        vi.mocked(prisma.user.create).mockResolvedValue(mockCreate);
-      }
+      const mockTx = {
+        user: {
+          findUnique: vi.fn().mockResolvedValue(mockFindUnique),
+          create: vi.fn().mockResolvedValue(mockCreate),
+        },
+      };
+
+      vi.mocked(prisma.$transaction).mockImplementation((callback) => callback(mockTx as any));
 
       const result = await signupUser(input);
 
       if (expectCreate) {
-        expect(prisma.user.create).toHaveBeenCalledOnce();
+        expect(mockTx.user.create).toHaveBeenCalledOnce();
       }
       expect(result).toEqual(expected);
     });
@@ -144,14 +145,18 @@ describe("signupAction", () => {
         confirmPassword: "password123",
       },
       mockFindUnique: null,
-      mockCreate: {} as any,
+      mockCreate: { id: "new-id", email: "new@test.com", accountId: 1 } as any,
       expected: { success: true, message: "Account created successfully!" },
     },
   ])("returns correct result when $name", async ({ fields, mockFindUnique, mockCreate, expected }) => {
-    vi.mocked(prisma.user.findUnique).mockResolvedValue(mockFindUnique);
-    if (mockCreate !== null) {
-      vi.mocked(prisma.user.create).mockResolvedValue(mockCreate);
-    }
+    const mockTx = {
+      user: {
+        findUnique: vi.fn().mockResolvedValue(mockFindUnique),
+        create: vi.fn().mockResolvedValue(mockCreate),
+      },
+    };
+
+    vi.mocked(prisma.$transaction).mockImplementation((callback) => callback(mockTx as any));
 
     const result = await signupAction(null, makeFormData(fields));
     expect(result).toEqual(expected);
