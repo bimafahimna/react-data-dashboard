@@ -2,7 +2,6 @@
 
 import { prisma } from "@/lib/prisma";
 import { setSessionTokens } from "@/lib/session";
-import { withTimeout } from "@/lib/utility";
 import bcryptjs from "bcryptjs";
 import { redirect } from "next/navigation";
 
@@ -44,57 +43,50 @@ export async function signupUser(data: {
   const normalizedEmail = email.trim().toLowerCase();
   const normalizedFullName = fullName.trim();
 
-  let existingUser;
   try {
-    existingUser = await withTimeout(
-      prisma.user.findUnique({
-        where: { email: normalizedEmail },
-        select: { id: true },
-      }),
-      REQUEST_TIMEOUT_MS
+    const user = await prisma.$transaction(
+      async (tx) => {
+        const existingUser = await tx.user.findUnique({
+          where: { email: normalizedEmail },
+          select: { id: true },
+        });
+
+        if (existingUser) {
+          throw new Error("An account with this email already exists.");
+        }
+
+        const hashedPassword = await bcryptjs.hash(password, (Number(process.env.PASSWORD_HASH_SALT) || 10));
+
+        return await tx.user.create({
+          data: {
+            fullName: normalizedFullName,
+            email: normalizedEmail,
+            password: hashedPassword,
+          },
+        });
+      },
+      {
+        timeout: REQUEST_TIMEOUT_MS,
+      }
     );
-  } catch (error) {
-    if (error instanceof Error && error.message === "timeout") {
-      return { success: false, message: "The signup request took too long. Please try again." };
-    }
-    throw error;
-  }
-
-  if (existingUser) {
-    return { success: false, message: "An account with this email already exists." };
-  }
-
-  let hashedPassword;
-  try {
-    hashedPassword = await bcryptjs.hash(password, (Number(process.env.PASSWORD_HASH_SALT) || 10));
-  } catch (error) {
-    return { success: false, message: "An error occurred while hashing the password." };
-  }
-
-  let user;
-  try {
-    user = await withTimeout(
-      prisma.user.create({
-        data: {
-          fullName: normalizedFullName,
-          email: normalizedEmail,
-          password: hashedPassword,
-        },
-      }),
-      REQUEST_TIMEOUT_MS
-    );
-  } catch (error) {
-    if (error instanceof Error && error.message === "timeout") {
-      return { success: false, message: "The signup request took too long. Please try again." };
-    }
-    throw error;
-  }
 
     await setSessionTokens({ email: user.email, accountId: user.accountId });
     if (process.env.NODE_ENV === "test") {
       return { success: true, message: "Account created successfully!" };
     }
     redirect("/dashboard/home");
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === "An account with this email already exists.") {
+        return { success: false, message: error.message };
+      }
+      if (error.message.includes("timeout") || error.message.includes("Timed out")) {
+        return { success: false, message: "The signup request took too long. Please try again." };
+      }
+      return { success: false, message: "An error occurred during signup. Please try again." };
+    }
+    throw error;
+  }
 }
 
 export async function signupAction(prevState: any, formData: FormData): Promise<AuthResult> {
