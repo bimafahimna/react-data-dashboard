@@ -8,12 +8,23 @@ import { logoutAction } from "./action";
 export default function Navbar(props: { isLoggedIn: boolean }) {
   const session = props.isLoggedIn;
 
-  const menu: { ref: string; label: string }[] = [
-    { ref: "/home", label: "Home" },
-    { ref: "/products", label: "Products" },
-    { ref: "/about", label: "About Us" },
-    { ref: "/contact", label: "Contact" },
+  const menu: { id: number; ref: string; label: string }[] = [
+    { id: 1, ref: "/home", label: "Home" },
+    { id: 2, ref: "/products", label: "Products" },
+    { id: 3, ref: "/about", label: "About Us" },
+    { id: 4, ref: "/contact", label: "Contact" },
   ];
+
+  const listMenu = menu.map((item) => (
+    <li key={item.id}>
+      <Link
+        href={"/dashboard" + item.ref}
+        className="text-gray-600 font-medium hover:text-blue-600 transition-colors duration-300"
+      >
+        {item.label}
+      </Link>
+    </li>
+  ));
 
   return (
     <nav className="sticky top-0 z-50 flex items-center justify-between px-8 py-4 bg-white shadow-md font-sans">
@@ -21,18 +32,7 @@ export default function Navbar(props: { isLoggedIn: boolean }) {
         <Link href="/">InsightHub</Link>
       </div>
 
-      <ul className="flex m-0 p-0 list-none gap-8">
-        {menu.map((item) => (
-          <li key={item.ref}>
-            <Link
-              href={"/dashboard" + item.ref}
-              className="text-gray-600 font-medium hover:text-blue-600 transition-colors duration-300"
-            >
-              {item.label}
-            </Link>
-          </li>
-        ))}
-      </ul>
+      <ul className="flex m-0 p-0 list-none gap-8">{listMenu}</ul>
 
       {session ? (
         <div className="flex gap-4">
