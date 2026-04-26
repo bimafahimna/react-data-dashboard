@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-
-import Header from "@/app/components/Header";
-import Footer from "@/components/Footer";
+import "@/styles/globals.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,8 +13,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Data Dashboard",
-  description: "Dashboard to show data",
+  title: "InsightHub | Your Store Dashboard",
+  description: "Real-time market insights and store management dashboard.",
+  keywords: ["dashboard", "finance", "market", "data visualization", "nextjs"],
+  icons: {
+    icon: "/line-graph.svg",
+  },
 };
 
 export default function RootLayout({
@@ -28,11 +29,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background text-foreground`}
       >
-        <Header />
         {children}
-        <Footer />
       </body>
     </html>
   );

@@ -1,7 +1,7 @@
-import React from "react";
-
-const Dashboard = () => {
-  return <h1>DashboardPage</h1>;
-};
-
-export default Dashboard;
+export default function Home() {
+  return (
+    <>
+      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start"></main>
+    </>
+  );
+}
