@@ -6,10 +6,10 @@ const secretKey = process.env.SECRET_KEY || "default_secret_key_change_me";
 const algorithm = process.env.JWT_ALGORITHM || "HS256";
 const key = new TextEncoder().encode(secretKey);
 
-export const accessTokenKey = "access_token";
+export const accessTokenKey = process.env.ACCESS_TOKEN_KEY || "access_token";
 const accessTokenLifetime = (process.env.ACCESS_TOKEN_LIFETIME || "2h").trim();
 
-export const refreshTokenKey = "refresh_token";
+export const refreshTokenKey = process.env.REFRESH_TOKEN_KEY || "refresh_token";
 const refreshTokenLifetime = (process.env.REFRESH_TOKEN_LIFETIME || "3d").trim();
 
 export type TokenPayload = {
