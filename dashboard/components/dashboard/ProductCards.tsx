@@ -1,4 +1,12 @@
-const PRODUCTS = [
+type Product = {
+  name: string;
+  category: string;
+  revenue: string;
+  orders: number;
+  growth: string;
+}
+
+const PRODUCTS: Product[] = [
   {
     name: "Aurora Running Shoes",
     category: "Footwear",

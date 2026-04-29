@@ -14,15 +14,31 @@ model User {
   email     String   @unique
   password  String
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
   posts     Store[]
 }
 
 model Store {
-  id        Int     @id @default(autoincrement())
+  id        Int       @id @default(autoincrement())
   name      String
   location  String
-  published Boolean @default(false)
-  owner     User    @relation(fields: [ownerId], references: [accountId])
+  published Boolean   @default(false)
+  owner     User      @relation(fields: [ownerId], references: [accountId])
   ownerId   Int
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime?  @updatedAt
+}
+
+model Product {
+  id        Int      @id @default(autoincrement())
+  name      String
+  category  String
+  revenue   Int
+  orders    Int
+  growth    Int
+  store     Store    @relation(fields: [storeId], references: [id])
+  storeId   Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
 }
