@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Product" ALTER COLUMN "growth" SET DATA TYPE DOUBLE PRECISION;

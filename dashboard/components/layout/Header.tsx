@@ -8,7 +8,7 @@ const Header = async () => {
   const stores = await getStores();
   const storeLinks = stores.map((store) => ({
     label: store.name,
-    href: `/dashboard/stores?id=${store.id}`,
+    href: `/dashboard/stores/${store.id}`,
   }));
 
   return (

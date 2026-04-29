@@ -35,7 +35,7 @@ model Product {
   category  String
   revenue   Int
   orders    Int
-  growth    Int
+  growth    Float
   store     Store    @relation(fields: [storeId], references: [id])
   storeId   Int
   createdAt DateTime @default(now())

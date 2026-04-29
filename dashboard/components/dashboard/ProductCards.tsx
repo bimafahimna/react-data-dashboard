@@ -1,36 +1,37 @@
-type Product = {
-  name: string;
-  category: string;
-  revenue: string;
-  orders: number;
-  growth: string;
-}
+import ProductCard, { type Product } from "./ProductCard";
 
 const PRODUCTS: Product[] = [
   {
     name: "Aurora Running Shoes",
     category: "Footwear",
-    revenue: "$24,500",
+    currency: "USD",
+    revenue: 24500,
     orders: 312,
-    growth: "+12.4%",
+    growth: 12.4,
   },
   {
     name: "Nimbus Smart Bottle",
     category: "Accessories",
-    revenue: "$18,200",
+    currency: "USD",
+    revenue: 18200,
     orders: 228,
-    growth: "+8.1%",
+    growth: 8.1,
   },
   {
     name: "Vertex Yoga Mat Pro",
     category: "Fitness",
-    revenue: "$15,900",
+    currency: "USD",
+    revenue: 15900,
     orders: 196,
-    growth: "+5.7%",
+    growth: 5.7,
   },
 ];
 
-export default function ProductCards() {
+type ProductCardsProps = {
+  products?: Product[];
+};
+
+export default function ProductCards({ products = PRODUCTS }: ProductCardsProps) {
   return (
     <section className="mt-6">
       <div className="mb-4 flex items-center justify-between">
@@ -39,29 +40,8 @@ export default function ProductCards() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {PRODUCTS.map((product) => (
-          <article
-            key={product.name}
-            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{product.category}</p>
-            <h3 className="mt-1 text-base font-semibold text-slate-900">{product.name}</h3>
-
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <div className="rounded-lg bg-slate-50 p-3">
-                <p className="text-xs text-slate-400">Revenue</p>
-                <p className="text-sm font-semibold text-slate-800">{product.revenue}</p>
-              </div>
-              <div className="rounded-lg bg-slate-50 p-3">
-                <p className="text-xs text-slate-400">Orders</p>
-                <p className="text-sm font-semibold text-slate-800">{product.orders}</p>
-              </div>
-            </div>
-
-            <p className="mt-4 inline-flex rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">
-              Growth {product.growth}
-            </p>
-          </article>
+        {products.map((product) => (
+          <ProductCard key={product.name} product={product} />
         ))}
       </div>
     </section>
