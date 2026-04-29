@@ -2,31 +2,52 @@
 
 import React from "react";
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { logoutAction } from "@/app/(auth)/logoutAction";
 import {
     Home,
     BarChart3,
-    MessageCircle,
-    Calendar,
     Settings,
     HelpCircle,
     Store,
 } from "lucide-react";
 
-export default function Sidebar({ isLoggedIn }: { isLoggedIn: boolean }) {
-    const menu = [
-        { label: "Dashboard", icon: Home, href: "/dashboard/home" },
-        { label: "Analytics", icon: BarChart3, href: "/dashboard/products" },
-        { label: "Chat", icon: MessageCircle, href: "/dashboard/contact" },
-        { label: "Calendar", icon: Calendar, href: "/dashboard/about" },
+type NavItem = { label: string; href: string };
+
+export default function Sidebar({
+    isLoggedIn,
+    stores,
+}: {
+    isLoggedIn: boolean;
+    stores: NavItem[];
+}) {
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+
+    const menu: { label: string; icon: React.ElementType; href: string }[] = [
+        { label: "Dashboard", icon: Home, href: "/dashboard" },
+        { label: "Data", icon: BarChart3, href: "/dashboard/data" },
+        { label: "Settings", icon: Settings, href: "/dashboard/settings" },
     ];
 
-    const stores = [
-        { label: "Fashion Hive", href: "#" },
-        { label: "HealthMart", href: "#", active: true },
-        { label: "TechNest", href: "#" },
-    ];
+    const isActiveLink = (href: string) => {
+        const [targetPath, targetQuery] = href.split("?");
+        const pathMatches = pathname === targetPath;
+
+        if (!pathMatches) {
+            return false;
+        }
+
+        if (!targetQuery) {
+            return true;
+        }
+
+        const targetParams = new URLSearchParams(targetQuery);
+        return Array.from(targetParams.entries()).every(
+            ([key, value]) => searchParams.get(key) === value,
+        );
+    };
 
     return (
         <aside className="h-screen w-72 bg-gray-50 border-r flex flex-col justify-between px-4 py-6">
@@ -51,13 +72,18 @@ export default function Sidebar({ isLoggedIn }: { isLoggedIn: boolean }) {
                 <div className="mb-6">
                     <p className="text-xs text-gray-400 px-2 mb-2">MENU</p>
                     <ul className="space-y-1">
-                        {menu.map((item, i) => {
+                        {menu.map((item) => {
                             const Icon = item.icon;
+                            const isActive = isActiveLink(item.href);
                             return (
-                                <li key={i}>
+                                <li key={item.href}>
                                     <Link
                                         href={item.href}
-                                        className="flex items-center gap-3 px-3 py-2 rounded-md text-gray-600 hover:bg-white hover:shadow-sm hover:text-blue-600 transition"
+                                        className={`flex items-center gap-3 px-3 py-2 rounded-md transition ${
+                                            isActive
+                                                ? "bg-white shadow-sm text-gray-900 font-medium"
+                                                : "text-gray-600 hover:bg-white hover:shadow-sm hover:text-blue-600"
+                                        }`}
                                     >
                                         <Icon size={18} />
                                         {item.label}
@@ -72,11 +98,11 @@ export default function Sidebar({ isLoggedIn }: { isLoggedIn: boolean }) {
                 <div className="mb-6">
                     <p className="text-xs text-gray-400 px-2 mb-2">STORES</p>
                     <ul className="space-y-1">
-                        {stores.map((store, i) => (
-                            <li key={i}>
+                        {stores.map((store) => (
+                            <li key={store.href}>
                                 <Link
                                     href={store.href}
-                                    className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm ${store.active
+                                    className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm ${isActiveLink(store.href)
                                         ? "bg-white shadow-sm text-gray-900 font-medium"
                                         : "text-gray-500 hover:bg-white hover:shadow-sm"
                                         }`}

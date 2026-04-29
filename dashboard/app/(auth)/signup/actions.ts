@@ -62,6 +62,7 @@ export async function signupUser(data: {
             fullName: normalizedFullName,
             email: normalizedEmail,
             password: hashedPassword,
+            
           },
         });
       },
@@ -74,7 +75,6 @@ export async function signupUser(data: {
     if (process.env.NODE_ENV === "test") {
       return { success: true, message: "Account created successfully!" };
     }
-    redirect("/dashboard/home");
   } catch (error) {
     if (error instanceof Error) {
       if (error.message === "An account with this email already exists.") {
@@ -87,6 +87,7 @@ export async function signupUser(data: {
     }
     throw error;
   }
+  redirect("/dashboard");
 }
 
 export async function signupAction(prevState: any, formData: FormData): Promise<AuthResult> {
