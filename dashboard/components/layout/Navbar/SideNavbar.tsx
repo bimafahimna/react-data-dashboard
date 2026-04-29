@@ -50,9 +50,10 @@ export default function Sidebar({
     };
 
     return (
-        <aside className="h-screen w-72 bg-gray-50 border-r flex flex-col justify-between px-4 py-6">
+        <aside className="sticky top-0 h-screen w-72 shrink-0 overflow-y-auto border-r bg-gray-50 px-4 py-6">
             {/* TOP */}
-            <div>
+            <div className="flex min-h-full flex-col justify-between">
+                <div>
                 {/* Logo */}
                 <div className="flex items-center gap-2 px-2 mb-6">
                     <div className="w-8 h-8 bg-blue-600 rounded-md" />
@@ -114,10 +115,10 @@ export default function Sidebar({
                         ))}
                     </ul>
                 </div>
-            </div>
+                </div>
 
             {/* BOTTOM */}
-            <div>
+            <div className="mt-6">
                 <p className="text-xs text-gray-400 px-2 mb-2">OTHERS</p>
                 <div className="space-y-1 mb-4">
                     <Link
@@ -144,6 +145,7 @@ export default function Sidebar({
                         </Button>
                     </form>
                 )}
+            </div>
             </div>
         </aside>
     );

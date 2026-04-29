@@ -29,14 +29,20 @@ const PRODUCTS: Product[] = [
 
 type ProductCardsProps = {
   products?: Product[];
+  title?: string;
+  subtitle?: string;
 };
 
-export default function ProductCards({ products = PRODUCTS }: ProductCardsProps) {
+export default function ProductCards({
+  products = PRODUCTS,
+  title = "Top Products",
+  subtitle = "This month performance snapshot",
+}: ProductCardsProps) {
   return (
     <section className="mt-6">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-900">Top Products</h2>
-        <p className="text-sm text-slate-500">This month performance snapshot</p>
+        <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+        <p className="text-sm text-slate-500">{subtitle}</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

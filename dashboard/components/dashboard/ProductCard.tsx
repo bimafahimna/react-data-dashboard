@@ -5,6 +5,8 @@ export type Product = {
   revenue: number;
   orders: number;
   growth: number;
+  storeSource?: string;
+  storeLocation?: string;
 };
 
 type ProductCardProps = {
@@ -26,6 +28,12 @@ export default function ProductCard({ product }: ProductCardProps) {
         {product.category}
       </p>
       <h3 className="mt-1 text-base font-semibold text-slate-900">{product.name}</h3>
+      {product.storeSource ? (
+        <p className="mt-1 text-xs text-slate-500">Source: {product.storeSource}</p>
+      ) : null}
+      {product.storeLocation ? (
+        <p className="text-xs text-slate-500">Location: {product.storeLocation}</p>
+      ) : null}
 
       <div className="mt-4 grid grid-cols-2 gap-3">
         <div className="rounded-lg bg-slate-50 p-3">
