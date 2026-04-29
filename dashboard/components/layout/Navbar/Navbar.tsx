@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
-import { logoutAction } from "./action";
+import { logoutAction } from "@/app/(auth)/logoutAction";
 
 export default function Navbar(props: { isLoggedIn: boolean }) {
   const session = props.isLoggedIn;
