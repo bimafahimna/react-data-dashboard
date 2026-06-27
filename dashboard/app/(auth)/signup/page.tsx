@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/Button";
 import { Icons } from "@/components/ui/Icons";
 import { signupAction } from "./actions";
@@ -11,6 +11,12 @@ import { useActionState } from "react";
 const Signup = () => {
   const formRef = useRef<HTMLFormElement>(null);
   const [state, formAction, isPending] = useActionState(signupAction, null);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  const handleGoogleSignIn = () => {
+    setIsGoogleLoading(true);
+    signIn("google", { callbackUrl: "/dashboard" });
+  };
 
   useEffect(() => {
     if (state?.success) {
@@ -32,9 +38,15 @@ const Signup = () => {
         </div>
 
         <div className="grid grid-cols-2 gap-3 mb-6">
-          <Button type="button" variant="social" className="w-full">
+          <Button
+            type="button"
+            variant="social"
+            className="w-full"
+            onClick={handleGoogleSignIn}
+            disabled={isGoogleLoading}
+          >
             <Icons.Google className="w-5 h-5 pr-[2.5px]" />
-            Google
+            {isGoogleLoading ? "Redirecting..." : "Google"}
           </Button>
           <Button type="button" variant="social" className="w-full">
             <Icons.Apple className="w-5 h-5 text-black pr-0.5" />

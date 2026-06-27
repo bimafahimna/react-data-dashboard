@@ -38,8 +38,15 @@ export async function loginUser(data: {
     return { success: false, message: "An error occurred. Please try again later." };
   }
 
-  if (!user) {
+  if (!user) {w
     return { success: false, message: "Invalid email or password." };
+  }
+
+  if (!user.password) {
+    return {
+      success: false,
+      message: "This account uses Google sign-in. Please continue with Google.",
+    };
   }
 
   const isPasswordValid = await bcryptjs.compare(password, user.password);

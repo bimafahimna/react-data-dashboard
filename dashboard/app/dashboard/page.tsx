@@ -1,8 +1,8 @@
 import TimeframeChart from "@/components/dashboard/TimeframeChart";
 import ProductCards from "@/components/dashboard/ProductCards";
 import type { Product } from "@/components/dashboard/ProductCard";
-import { getProductsByStoreId } from "@/lib/repositories/products";
-import { getStores } from "@/lib/repositories/stores";
+import { getProductsByStoreId } from "@/lib/repository/products";
+import { getStores } from "@/lib/repository/stores";
 
 type StoreProductGroup = {
   storeId: number;
