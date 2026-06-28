@@ -2,7 +2,7 @@ import React from "react";
 import ProductCards from "@/components/dashboard/ProductCards";
 import type { Product } from "@/components/dashboard/ProductCard";
 import TimeframeChart from "@/components/dashboard/TimeframeChart";
-import { getProductsByStoreId } from "@/lib/repositories/products";
+import { getProductsByStoreId } from "@/lib/repository/products";
 
 const StoreDetailsPage = async ({ params }: { params: Promise<{ id: string }> }) => {
   const hasChartData = false;

@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
-    "build:vercel": "prisma migrate deploy && prisma generate && next build --turbopack",
+    "build:doppler": "doppler run -- next build --turbopack",
+    "migrate": "prisma migrate deploy",
+    "build:vercel": "prisma generate && next build --turbopack",
     "start": "next start",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -21,9 +23,11 @@
     "lucide-react": "^1.11.0",
     "ms": "^2.1.3",
     "next": "15.5.9",
+    "next-auth": "^4.24.14",
     "pg": "^8.20.0",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

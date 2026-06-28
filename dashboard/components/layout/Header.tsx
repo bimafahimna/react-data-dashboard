@@ -1,7 +1,7 @@
 import React from "react";
 import { getAccessToken } from "@/lib/session";
 import Sidebar from "./Navbar/SideNavbar";
-import { getStores } from "@/lib/repositories/stores";
+import { getStores } from "@/lib/repository/stores";
 
 const Header = async () => {
   const token = await getAccessToken();

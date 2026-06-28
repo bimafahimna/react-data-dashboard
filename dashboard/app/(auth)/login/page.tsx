@@ -1,13 +1,37 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useActionState, useState } from "react";
+import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/Button";
 import { Icons } from "@/components/ui/Icons";
 import { loginAction } from "./actions";
-import { useActionState } from "react";
+
+const OAUTH_ERROR_MESSAGES: Record<string, string> = {
+  provider_unsupported: "That sign-in provider isn't supported.",
+  email_unavailable: "Google didn't share an email address with us.",
+  email_unverified: "Your Google account email is not verified.",
+  account_conflict: "An account with this email already exists. Sign in with your password first to link Google.",
+  server_error: "Something went wrong while signing you in. Please try again.",
+  AccessDenied: "Google sign-in was cancelled.",
+  Configuration: "Google sign-in is not configured. Please contact the administrator.",
+  Verification: "We couldn't verify your Google sign-in. Please try again.",
+};
 
 const Login = () => {
-  const [state, formAction, isPending] = useActionState(loginAction, null)
+  const [state, formAction, isPending] = useActionState(loginAction, null);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const searchParams = useSearchParams();
+  const oauthErrorCode = searchParams.get("error");
+  const oauthErrorMessage = oauthErrorCode
+    ? OAUTH_ERROR_MESSAGES[oauthErrorCode] ?? "Google sign-in failed. Please try again."
+    : null;
+
+  const handleGoogleSignIn = () => {
+    setIsGoogleLoading(true);
+    signIn("google", { callbackUrl: "/dashboard" });
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50">
@@ -18,15 +42,27 @@ const Login = () => {
         </div>
 
         <div className="grid grid-cols-2 gap-3 mb-6">
-          <Button type="button" variant="social" className="w-full">
+          <Button
+            type="button"
+            variant="social"
+            className="w-full"
+            onClick={handleGoogleSignIn}
+            disabled={isGoogleLoading}
+          >
             <Icons.Google className="w-5 h-5 pr-[2.5px]" />
-            Google
+            {isGoogleLoading ? "Redirecting..." : "Google"}
           </Button>
           <Button type="button" variant="social" className="w-full">
             <Icons.Apple className="w-5 h-5 text-black" />
             Apple
           </Button>
         </div>
+
+        {oauthErrorMessage && (
+          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5 mb-4">
+            {oauthErrorMessage}
+          </p>
+        )}
 
         <div className="relative flex items-center justify-center mb-6">
           <div className="absolute inset-0 flex items-center">
@@ -94,4 +130,10 @@ const Login = () => {
   );
 };
 
-export default Login;
+const LoginPage = () => (
+  <Suspense fallback={null}>
+    <Login />
+  </Suspense>
+);
+
+export default LoginPage;

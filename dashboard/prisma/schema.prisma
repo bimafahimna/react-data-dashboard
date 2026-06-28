@@ -12,7 +12,9 @@ model User {
   accountId Int      @unique @default(autoincrement())
   fullName  String
   email     String   @unique
-  password  String
+  password  String?
+  googleId  String?  @unique
+  avatarUrl String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   posts     Store[]

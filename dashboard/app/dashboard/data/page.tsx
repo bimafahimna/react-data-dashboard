@@ -1,5 +1,5 @@
-import { getProductsByStoreId } from "@/lib/repositories/products";
-import { getStores } from "@/lib/repositories/stores";
+import { getProductsByStoreId } from "@/lib/repository/products";
+import { getStores } from "@/lib/repository/stores";
 
 type DataRow = {
   storeName: string;
