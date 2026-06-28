@@ -32,6 +32,7 @@ jobs:
           node-version: 22
 
       - name: Install Dependencies
+        working-directory: dashboard
         run: npm ci
 
       - name: Install Vercel CLI
@@ -52,7 +53,8 @@ jobs:
 
       - name: Build Project
         run: |
-          npm run build
+          vercel build \
+            --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Deploy to Production
         if: github.event_name == 'push' && github.ref_name == 'main'
