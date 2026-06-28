@@ -4,10 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { setSessionTokens } from "@/lib/session";
 import { env } from "@/env";
 
-// NextAuth v4 reads these env vars directly.
-process.env.NEXTAUTH_SECRET ||= env.AUTH_SECRET;
-process.env.NEXTAUTH_URL ||= env.AUTH_URL;
-
 class AccountConflictError extends Error {
   constructor() {
     super("ACCOUNT_CONFLICT");
