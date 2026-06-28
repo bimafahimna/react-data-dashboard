@@ -8,14 +8,21 @@ echo "Target PR: $VERCEL_GIT_PULL_REQUEST_TARGET_BRANCH"
 if [ "$VERCEL_GIT_COMMIT_REF" = "main" ] || [ "$VERCEL_GIT_COMMIT_REF" = "dev" ]; then
   echo "✅ - Push/Merge terdeteksi di branch '$VERCEL_GIT_COMMIT_REF'. Menjalankan build."
   exit 1;
+fi
 
-# Kondisi 3: Pull Request yang ditujukan ke branch 'dev'
-elif [ "$VERCEL_GIT_PULL_REQUEST_TARGET_BRANCH" = "dev" ]; then
-  echo "✅ - Pull Request menuju branch 'dev' terdeteksi. Menjalankan build."
-  exit 1;
+# If this is a PR deployment
+if [[ -n "$VERCEL_GIT_PULL_REQUEST_ID" ]]; then
+  BASE_BRANCH=$(curl -s \
+    -H "Authorization: Bearer $GITHUB_TOKEN" \
+    "https://api.github.com/repos/$VERCEL_GIT_REPO_OWNER/$VERCEL_GIT_REPO_SLUG/pulls/$VERCEL_GIT_PULL_REQUEST_ID" \
+    | jq -r '.base.ref')
+
+  if [[ "$BASE_BRANCH" == "dev" ]]; then
+    exit 1
+  fi
+fi
 
 # Jika tidak memenuhi kondisi di atas, batalkan build
-else
-  echo "🛑 - Deployment dibatalkan. Hanya memproses branch main, dev, atau PR ke dev."
-  exit 0;
-fi
+echo "🛑 - Deployment dibatalkan. Hanya memproses branch main, dev, atau PR ke dev."
+exit 0;
+
