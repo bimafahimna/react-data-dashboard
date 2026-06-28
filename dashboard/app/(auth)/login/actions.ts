@@ -38,7 +38,7 @@ export async function loginUser(data: {
     return { success: false, message: "An error occurred. Please try again later." };
   }
 
-  if (!user) {w
+  if (!user) {
     return { success: false, message: "Invalid email or password." };
   }
 
