@@ -66,7 +66,6 @@ jobs:
             --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Build Project
-        working-directory: dashboard
         run: doppler run -- vercel build --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Database Migrate
