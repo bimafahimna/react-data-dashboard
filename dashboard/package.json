@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
-    "build:vercel": "prisma migrate deploy && prisma generate && next build --turbopack",
+    "build:doppler": "doppler run -- next build --turbopack",
+    "migrate": "prisma migrate generate && prisma deploy",
+    "build:migrate": "prisma migrate generate && prisma deploy && next build --turbopack",
     "start": "next start",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
