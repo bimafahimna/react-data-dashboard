@@ -53,3 +53,5 @@ dashboard_components_breakdown.md
 # Prisma SQLite database (local dev only)
 prisma/dev.db
 prisma/dev.db-journal
+
+graphify-out
