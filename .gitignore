@@ -2,3 +2,5 @@
 .vscode
 .vercel
 .env*
+
+graphify-out
