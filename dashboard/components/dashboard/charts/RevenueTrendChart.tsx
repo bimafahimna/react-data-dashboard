@@ -32,7 +32,7 @@ export function RevenueTrendChart({ currentSeries, previousSeries, currency }: P
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
           <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#475569" }} />
           <YAxis tick={{ fontSize: 12, fill: "#475569" }} tickFormatter={(v) => formatter(Number(v))} width={80} />
-          <Tooltip formatter={(v: number) => formatter(v)} labelClassName="font-semibold" />
+          <Tooltip formatter={(v) => formatter(Number(v ?? 0))} labelClassName="font-semibold" />
           <Legend />
           <Bar dataKey="previous" name="Previous period" fill="#cbd5f5" />
           <Area type="monotone" dataKey="current" name="Revenue" stroke="#6366f1" fill="#c7d2fe" />
