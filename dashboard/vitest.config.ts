@@ -1,17 +1,10 @@
 import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react";
 import path from "path";
 
 export default defineConfig({
-  test: {
-    environment: "node",
-    globals: true,
-  },
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "."),
-    },
-  },
   plugins: [
+    react(),
     // Strip "use server" / "use client" directives so Vitest can import them
     {
       name: "strip-next-directives",
@@ -22,4 +15,13 @@ export default defineConfig({
       },
     },
   ],
+  test: {
+    environment: "node",
+    globals: true,
+  },
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "."),
+    },
+  },
 });
