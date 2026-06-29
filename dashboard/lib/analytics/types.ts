@@ -32,7 +32,7 @@ export const RANGE_TO_BUCKET: Record<Range, Bucket> = {
 
 export class AnalyticsError extends Error {
   constructor(public code: "FX_MISSING" | "DB_UNAVAILABLE" | "INVALID_RANGE", message: string) {
-    super(message);
+    super(`${code}: ${message}`);
     this.name = "AnalyticsError";
   }
 }
