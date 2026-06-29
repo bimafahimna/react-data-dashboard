@@ -34,7 +34,11 @@ function fillBuckets(rows: { bucket: Date; value: number }[], from: Date, to: Da
   const out: { bucket: Date; value: number }[] = [];
   if (bucket === "month") {
     let cur = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), 1));
-    const end = new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), 1));
+    const monthStart = new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), 1));
+    const end =
+      to.getTime() > monthStart.getTime()
+        ? new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth() + 1, 1))
+        : monthStart;
     while (cur < end) {
       out.push({ bucket: cur, value: byKey.get(cur.toISOString()) ?? 0 });
       cur = new Date(Date.UTC(cur.getUTCFullYear(), cur.getUTCMonth() + 1, 1));
