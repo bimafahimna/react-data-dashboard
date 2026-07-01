@@ -426,6 +426,166 @@ async function backfillFirstOrderAt(prisma, customers, orders) {
   });
 }
 
+// ---------- Time-window helpers ---------------------------------------------
+
+/** Returns Date at exact midnight UTC for the given day offset from `to`. */
+function utcMidnight(to, dayOffset) {
+  const d = new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate()));
+  d.setUTCDate(d.getUTCDate() + dayOffset);
+  return d;
+}
+
+function weekdayFactor(date) {
+  const dow = date.getUTCDay(); // 0=Sun ... 6=Sat
+  if (dow === 0) return 0.6;    // Sun
+  if (dow === 6) return 1.35;   // Sat
+  if (dow === 5) return 1.15;   // Fri
+  return 1.0;                    // Mon-Thu
+}
+
+function seasonalityFactor(dayIndex, totalDays) {
+  // Linear 1.0 -> 1.25 across the window.
+  return 1.0 + 0.25 * (dayIndex / Math.max(1, totalDays - 1));
+}
+
+function pickStatus(rng) {
+  return weightedPick(
+    rng,
+    ORDER_STATUS_MIX.map((m) => m.status),
+    ORDER_STATUS_MIX.map((m) => m.weight)
+  );
+}
+
+// ---------- Order generation ------------------------------------------------
+
+/**
+ * Generates all orders (with items) for one store across the WINDOW_DAYS window.
+ * Returns { orders, items } as JS arrays; nothing is persisted here.
+ * Also returns per-product sales tallies so inventory generation can consume them.
+ */
+function buildOrdersForStore(rng, store, storeProducts, customers, repeatPool, now) {
+  const orders = [];
+  const items = [];
+
+  // Precompute product weights for weightedPick.
+  const productWeights = storeProducts.map((p) => {
+    if (p._profile === "TOP") return 5;
+    if (p._profile === "HEALTHY") return 1;
+    if (p._profile === "LOW") return 0.3;
+    return 0.1; // CRITICAL
+  });
+
+  for (let dayOffset = -WINDOW_DAYS + 1; dayOffset <= 0; dayOffset++) {
+    const dayStart = utcMidnight(now, dayOffset);
+    const dayIndex = WINDOW_DAYS - 1 + dayOffset; // 0..WINDOW_DAYS-1
+    const noise = 0.85 + rng() * 0.3;
+    const rawCount =
+      store.baseOrdersPerDay *
+      weekdayFactor(dayStart) *
+      seasonalityFactor(dayIndex, WINDOW_DAYS) *
+      noise;
+    const count = Math.max(1, Math.round(rawCount));
+
+    for (let k = 0; k < count; k++) {
+      // Customer: 70% from repeat pool, 30% uniform.
+      const customer =
+        rng() < REPEAT_PROBABILITY ? pick(rng, repeatPool) : pick(rng, customers);
+
+      // Time within the day.
+      const placedAt = new Date(dayStart.getTime() + Math.floor(rng() * 86400000));
+      const status = pickStatus(rng);
+
+      // Line items: 1..4 distinct products.
+      const numLines = randInt(rng, 1, 4);
+      const chosen = new Set();
+      const orderItems = [];
+      let totalCents = 0;
+      let attempts = 0;
+      while (chosen.size < numLines && attempts < numLines * 5) {
+        attempts++;
+        const p = weightedPick(rng, storeProducts, productWeights);
+        if (chosen.has(p.sku)) continue;
+        chosen.add(p.sku);
+        const quantity = randInt(rng, 1, 3);
+        const subtotalCents = quantity * p.unitPriceCents;
+        totalCents += subtotalCents;
+        orderItems.push({
+          productSku: p.sku, // resolved to productId after order.id is known
+          quantity,
+          unitPriceCents: p.unitPriceCents,
+          subtotalCents,
+        });
+      }
+
+      // paidAt / refundedAt
+      let paidAt = null;
+      let refundedAt = null;
+      if (status === "PAID" || status === "REFUNDED") {
+        paidAt = new Date(placedAt.getTime() + Math.floor(rng() * 15 * 60000));
+      }
+      if (status === "REFUNDED") {
+        const refundDelayMs = (1 + rng() * 29) * 86400000;
+        refundedAt = new Date(Math.min(now.getTime(), paidAt.getTime() + refundDelayMs));
+      }
+
+      const orderKey = `${store.code}-${dayOffset}-${k}`; // stable identifier for cross-referencing before DB assigns id
+      orders.push({
+        _key: orderKey,
+        storeId: store.id,
+        customerId: customer.id,
+        status,
+        currency: store.baseCurrency,
+        totalCents,
+        placedAt,
+        paidAt,
+        refundedAt,
+      });
+      for (const item of orderItems) {
+        items.push({ _orderKey: orderKey, ...item });
+      }
+    }
+  }
+  return { orders, items };
+}
+
+async function seedOrders(prisma, orders, items, productBySku) {
+  // Persist orders in batches with nested item creates. We do NOT use
+  // createMany for orders because we need Order IDs to link items and we
+  // want the nested-create pattern for simplicity + FK integrity.
+  await chunked(orders, 50, async (batch) => {
+    await Promise.all(
+      batch.map((o) => {
+        const itemCreates = items
+          .filter((it) => it._orderKey === o._key)
+          .map((it) => ({
+            productId: productBySku.get(it.productSku).id,
+            quantity: it.quantity,
+            unitPriceCents: it.unitPriceCents,
+            subtotalCents: it.subtotalCents,
+          }));
+        return prisma.order
+          .create({
+            data: {
+              storeId: o.storeId,
+              customerId: o.customerId,
+              status: o.status,
+              currency: o.currency,
+              totalCents: o.totalCents,
+              placedAt: o.placedAt,
+              paidAt: o.paidAt,
+              refundedAt: o.refundedAt,
+              items: { create: itemCreates },
+            },
+            select: { id: true },
+          })
+          .then((row) => {
+            o.id = row.id; // mutate in place so inventory phase can reference it
+          });
+      })
+    );
+  });
+}
+
 // ---------- Module exports (for tests) ---------------------------------------
 
 module.exports = {
