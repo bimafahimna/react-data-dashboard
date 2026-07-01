@@ -90,6 +90,80 @@ async function chunked(arr, size, fn) {
   }
 }
 
+// ---------- Constants -------------------------------------------------------
+
+const DEMO_TAG = "demo-seed-v1";
+const DEMO_TAG_CORRECTIVE = "demo-seed-v1 corrective";
+const DEMO_TAG_PREFIX = "demo-seed-v1"; // used with LIKE for --clear
+
+const WINDOW_DAYS = 92;
+
+const DEMO_CURRENCIES = ["USD", "EUR", "GBP", "JPY", "IDR"];
+
+/** Anchor USD-based rates as of "now" (seed run time). Other pairs are derived. */
+const USD_ANCHORS = {
+  USD: 1.0,
+  EUR: 0.92,
+  GBP: 0.79,
+  JPY: 157.0,
+  IDR: 16200.0,
+};
+
+const STORES = [
+  { code: "JKT", name: "Demo — Jakarta Flagship", location: "Jakarta", baseCurrency: "IDR", baseOrdersPerDay: 10 },
+  { code: "BER", name: "Demo — Berlin Outlet",   location: "Berlin",   baseCurrency: "EUR", baseOrdersPerDay: 7  },
+  { code: "NYC", name: "Demo — NYC Showroom",    location: "New York", baseCurrency: "USD", baseOrdersPerDay: 9  },
+];
+
+const CATEGORIES = ["Apparel", "Footwear", "Accessories", "Electronics", "Home"];
+
+/** Price bands in the store's base-currency cents. */
+const CATEGORY_PRICE_BAND_CENTS = {
+  Apparel:     [1500,  8000],
+  Footwear:    [3000, 15000],
+  Accessories: [ 800,  5000],
+  Electronics: [8000, 80000],
+  Home:        [2000, 20000],
+};
+
+/** 10 product names per category (fixture pool). */
+const PRODUCT_NAMES = {
+  Apparel:     ["Crewneck Tee", "Linen Shirt", "Oxford Button-Down", "Merino Sweater", "Chino Shorts", "Selvedge Jeans", "Puffer Jacket", "Rain Shell", "Track Pants", "Hooded Sweatshirt"],
+  Footwear:    ["Runner 3.0", "Trail Boot", "Canvas Sneaker", "Leather Loafer", "Chelsea Boot", "Suede Derby", "Court Shoe", "Slip-On", "Sandal", "Winter Boot"],
+  Accessories: ["Leather Belt", "Wool Beanie", "Silk Scarf", "Aviator Sunglasses", "Bifold Wallet", "Canvas Tote", "Bucket Hat", "Analog Watch", "Card Holder", "Weekender Bag"],
+  Electronics: ["Wireless Earbuds", "Bluetooth Speaker", "Smart Bulb", "USB-C Hub", "Portable SSD", "Mechanical Keyboard", "Webcam HD", "Charging Pad", "Noise-Cancel Headphones", "Streaming Stick"],
+  Home:        ["Ceramic Mug Set", "Cotton Throw", "Scented Candle", "Bamboo Cutting Board", "French Press", "Linen Napkins", "Desk Lamp", "Wall Clock", "Cast-Iron Skillet", "Bath Towel Set"],
+};
+
+const PRODUCT_PROFILE = {
+  TOP:      { perStore: 2, initial: [200, 300], restockEveryDays: 14, restockAmount: [50, 100] },
+  HEALTHY:  { perStore: 5, initial: [ 80, 120], restockEveryDays: 21, restockAmount: [30,  60] },
+  LOW:      { perStore: 2, initial: [ 20,  30], restockEveryDays: null, restockAmount: null },
+  CRITICAL: { perStore: 1, initial: [ 10,  15], restockEveryDays: null, restockAmount: null },
+};
+
+const ORDER_STATUS_MIX = [
+  { status: "PAID",      weight: 92 },
+  { status: "PENDING",   weight: 5  },
+  { status: "REFUNDED",  weight: 2  },
+  { status: "CANCELLED", weight: 1  },
+];
+
+/** 90 total customers; first 25 are the "repeat" pool. */
+const NUM_CUSTOMERS = 90;
+const REPEAT_POOL_SIZE = 25;
+const REPEAT_PROBABILITY = 0.7;
+
+const CUSTOMER_FIRST_NAMES = [
+  "Alex", "Sam", "Jordan", "Taylor", "Casey", "Morgan", "Riley", "Avery", "Cameron", "Rowan",
+  "Quinn", "Jamie", "Reese", "Emerson", "Skyler", "Hayden", "Parker", "Drew", "Kai", "Nico",
+  "Sasha", "Kendall", "Ari", "Elliot", "Sage", "Blake", "Charlie", "Devon", "Finley", "Harper",
+];
+const CUSTOMER_LAST_NAMES = [
+  "Nguyen", "García", "Kim", "Patel", "Silva", "Cohen", "Okafor", "Yamamoto", "Andersson",
+  "Rossi", "Müller", "Dubois", "Ivanov", "Sato", "Rahman", "O'Neill", "Costa", "Fischer",
+];
+
 // ---------- Module exports (for tests) ---------------------------------------
 
 module.exports = { xfnv1a, mulberry32, randInt, pick, weightedPick, gaussian, chunked };
