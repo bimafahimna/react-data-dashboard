@@ -251,13 +251,19 @@ async function clearDemo(prisma) {
   // FX: raw SQL because Prisma cannot express the midnight-UTC predicate.
   // "asOf" is a timestamptz; epoch % 86400 == 0 iff it is exact UTC midnight.
   // We use Prisma.join to build a safe IN-list rather than relying on
-  // tagged-template array-to-Postgres-array conversion.
+  // tagged-template array-to-Postgres-array conversion. The date window
+  // [now - (WINDOW_DAYS + 1) days, now] bounds the delete to the demo range;
+  // combined with midnight-UTC it means we only touch rows this seed script
+  // itself could have produced.
   const { Prisma } = require("../generated/prisma");
   const ccyList = Prisma.join(DEMO_CURRENCIES);
+  const fxWindowStart = new Date(Date.now() - (WINDOW_DAYS + 1) * 86400 * 1000);
+  const fxWindowEnd = new Date();
   const fxResult = await prisma.$executeRaw`
     DELETE FROM "FxRate"
     WHERE "baseCurrency" IN (${ccyList})
       AND "quoteCurrency" IN (${ccyList})
+      AND "asOf" BETWEEN ${fxWindowStart} AND ${fxWindowEnd}
       AND CAST(EXTRACT(EPOCH FROM "asOf") AS BIGINT) % 86400 = 0
   `;
   counts.fxRates = fxResult;
