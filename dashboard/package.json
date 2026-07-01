@@ -12,7 +12,9 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "seed:demo": "node prisma/seed-demo.cjs",
+    "seed:demo:clear": "node prisma/seed-demo.cjs --clear"
   },
   "dependencies": {
     "@prisma/adapter-better-sqlite3": "^7.7.0",
