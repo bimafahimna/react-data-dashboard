@@ -854,10 +854,12 @@ if (require.main === module) {
     .finally(() => prisma.$disconnect());
 }
 
-// main() is defined in Task 12. Provide a placeholder so the file still loads.
 async function main(prisma, flags) {
+  const t0 = Date.now();
+  const seedString = process.env.SEED_RANDOM_SEED || "react-dashboard-demo";
   const owner = await resolveOwner(prisma);
   console.log(`Owner: ${owner.email} (accountId=${owner.accountId})`);
+  console.log(`Seed string: "${seedString}"`);
 
   if (!flags.keep) {
     await clearDemo(prisma);
@@ -867,6 +869,142 @@ async function main(prisma, flags) {
     return;
   }
 
-  console.error("seed-demo.cjs: seed phase not yet implemented (Task 12).");
-  process.exit(1);
+  const now = new Date();
+  const rng = mulberry32(xfnv1a(seedString));
+
+  // Categories + stores must exist before we can reference IDs from products,
+  // so we run them OUTSIDE the big transaction. They use upsert/find-or-create
+  // and are safe to re-run.
+  const categoriesByName = await seedCategories(prisma);
+  const stores = await seedStores(prisma, owner.accountId);
+
+  // Generate all in-memory data BEFORE opening the transaction so the tx
+  // is purely bulk-insert (no CPU-bound work inside).
+  const allProducts = [];
+  for (const store of stores) {
+    allProducts.push(...buildProducts(rng, store, categoriesByName));
+  }
+  const customers = buildCustomers(rng);
+  const repeatPool = customers.slice(0, REPEAT_POOL_SIZE);
+
+  let stats;
+  await prisma.$transaction(
+    async (tx) => {
+      await seedProducts(tx, allProducts);
+      await seedCustomers(tx, customers);
+
+      // Build a productBySku lookup after products have IDs.
+      const productBySku = new Map(allProducts.map((p) => [p.sku, p]));
+
+      // Orders + items per store.
+      const allOrders = [];
+      const allItems = [];
+      for (const store of stores) {
+        const storeProducts = allProducts.filter((p) => p.storeId === store.id);
+        const { orders, items } = buildOrdersForStore(
+          rng, store, storeProducts, customers, repeatPool, now
+        );
+        allOrders.push(...orders);
+        allItems.push(...items);
+      }
+      await seedOrders(tx, allOrders, allItems, productBySku);
+      await backfillFirstOrderAt(tx, customers, allOrders);
+
+      // Build inventory movements from sales.
+      // For each product, gather its sales (with placedAt + orderId + status).
+      const salesByProduct = new Map();
+      for (const o of allOrders) {
+        const relatedItems = allItems.filter((it) => it._orderKey === o._key);
+        for (const it of relatedItems) {
+          const p = productBySku.get(it.productSku);
+          if (!salesByProduct.has(p.id)) salesByProduct.set(p.id, []);
+          salesByProduct.get(p.id).push({
+            quantity: it.quantity,
+            placedAt: o.placedAt,
+            orderId: o.id,
+            status: o.status,
+          });
+        }
+      }
+
+      const movements = [];
+      for (const p of allProducts) {
+        const sales = salesByProduct.get(p.id) || [];
+        movements.push(...buildInventoryForProduct(rng, p, sales, now));
+      }
+
+      // Corrective row (skipped for --keep additive batches).
+      if (!flags.keep) {
+        movements.push(...computeCorrectiveMovements(allProducts, movements, now));
+      }
+
+      await seedInventory(tx, movements);
+
+      // FX matrix.
+      const fx = buildFxRates(rng, now);
+      await seedFxRates(tx, fx);
+
+      // Sanity assertions (should never fire after corrective step). Skipped
+      // for --keep because additive batches deliberately don't include a
+      // corrective row and the assertions only apply to the full-reseed path.
+      if (!flags.keep) {
+        assertInventoryInvariants(allProducts, movements);
+      }
+
+      stats = {
+        stores: stores.length,
+        categories: categoriesByName.size,
+        products: allProducts.length,
+        productsByProfile: countByProfile(allProducts),
+        customers: customers.length,
+        orders: allOrders.length,
+        ordersByStatus: countByStatus(allOrders),
+        orderItems: allItems.length,
+        movements: movements.length,
+        fxRates: fx.length,
+        from: utcMidnight(now, -WINDOW_DAYS + 1),
+        to: now,
+      };
+    },
+    { timeout: 120_000, maxWait: 10_000 }
+  );
+
+  printSummary(stats, seedString, ((Date.now() - t0) / 1000).toFixed(1));
+}
+
+function countByProfile(products) {
+  const c = { TOP: 0, HEALTHY: 0, LOW: 0, CRITICAL: 0 };
+  for (const p of products) c[p._profile] += 1;
+  return c;
+}
+
+function countByStatus(orders) {
+  const c = { PAID: 0, PENDING: 0, REFUNDED: 0, CANCELLED: 0 };
+  for (const o of orders) c[o.status] += 1;
+  return c;
+}
+
+function printSummary(s, seedString, elapsedSec) {
+  const storeLabels = STORES.map((x) => `${x.location} ${x.baseCurrency}`).join(", ");
+  console.log(`\nDemo seed complete (seed="${seedString}", elapsed ${elapsedSec}s):`);
+  console.log(`  Stores:      ${s.stores} (${storeLabels})`);
+  console.log(`  Categories:  ${s.categories}`);
+  console.log(
+    `  Products:    ${s.products}  ` +
+      `(${s.productsByProfile.TOP} top-sellers, ${s.productsByProfile.LOW} LOW, ` +
+      `${s.productsByProfile.CRITICAL} CRITICAL, ${s.productsByProfile.HEALTHY} healthy)`
+  );
+  console.log(`  Customers:   ${s.customers}  (~${REPEAT_POOL_SIZE} repeat)`);
+  console.log(
+    `  Orders:      ${s.orders}  ` +
+      `(PAID ${s.ordersByStatus.PAID} / PENDING ${s.ordersByStatus.PENDING} / ` +
+      `REFUNDED ${s.ordersByStatus.REFUNDED} / CANCELLED ${s.ordersByStatus.CANCELLED})`
+  );
+  console.log(`  OrderItems:  ${s.orderItems}`);
+  console.log(`  Movements:   ${s.movements}`);
+  console.log(`  FxRates:     ${s.fxRates}  (${DEMO_CURRENCIES.length}x${DEMO_CURRENCIES.length - 1} pairs x ${WINDOW_DAYS} days)`);
+  console.log(
+    `  Window:      ${s.from.toISOString().slice(0, 10)} -> ${s.to.toISOString().slice(0, 10)}\n`
+  );
+  console.log("Open http://localhost:3000/dashboard to verify.");
 }
