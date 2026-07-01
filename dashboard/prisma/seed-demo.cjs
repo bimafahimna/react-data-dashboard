@@ -586,6 +586,120 @@ async function seedOrders(prisma, orders, items, productBySku) {
   });
 }
 
+// ---------- Inventory generation --------------------------------------------
+
+/**
+ * Given a product and all its sales (from orders), produce the ordered list
+ * of InventoryMovement rows for this product:
+ *
+ *   1. Opening PURCHASE at (from - 1 day).
+ *   2. One SALE per OrderItem (delta = -quantity), occurredAt = order.placedAt.
+ *   3. Periodic restock PURCHASEs (TOP/HEALTHY only).
+ *   4. Noise: rare ADJUSTMENT (shrinkage), rare RETURN.
+ *
+ * Corrective row is added in Task 10 by a separate function.
+ */
+function buildInventoryForProduct(rng, product, sales, now) {
+  const movements = [];
+  const from = utcMidnight(now, -WINDOW_DAYS + 1);
+  const opening = new Date(from.getTime() - 86400000);
+
+  // 1. Opening purchase
+  movements.push({
+    storeId: product.storeId,
+    productId: product.id,
+    delta: product._initialStock,
+    reason: "PURCHASE",
+    orderId: null,
+    note: DEMO_TAG,
+    occurredAt: opening,
+  });
+
+  // 2. Sales
+  for (const sale of sales) {
+    movements.push({
+      storeId: product.storeId,
+      productId: product.id,
+      delta: -sale.quantity,
+      reason: "SALE",
+      orderId: sale.orderId,
+      note: DEMO_TAG,
+      occurredAt: sale.placedAt,
+    });
+  }
+
+  // 3. Periodic restocks (TOP/HEALTHY only)
+  const p = PRODUCT_PROFILE[product._profile];
+  if (p.restockEveryDays !== null) {
+    for (let dayOffset = -WINDOW_DAYS + 1 + p.restockEveryDays; dayOffset <= 0; dayOffset += p.restockEveryDays) {
+      const when = new Date(utcMidnight(now, dayOffset).getTime() + Math.floor(rng() * 86400000));
+      movements.push({
+        storeId: product.storeId,
+        productId: product.id,
+        delta: randInt(rng, p.restockAmount[0], p.restockAmount[1]),
+        reason: "PURCHASE",
+        orderId: null,
+        note: DEMO_TAG,
+        occurredAt: when,
+      });
+    }
+  } else {
+    // LOW/CRITICAL: one early restock around day 10 of the window
+    const earlyOffset = -WINDOW_DAYS + 10;
+    const when = new Date(utcMidnight(now, earlyOffset).getTime() + Math.floor(rng() * 86400000));
+    movements.push({
+      storeId: product.storeId,
+      productId: product.id,
+      delta: randInt(rng, 5, 15),
+      reason: "PURCHASE",
+      orderId: null,
+      note: DEMO_TAG,
+      occurredAt: when,
+    });
+  }
+
+  // 4. Noise
+  if (rng() < 0.03) {
+    // Shrinkage
+    const dayOffset = -randInt(rng, 1, WINDOW_DAYS - 1);
+    const when = new Date(utcMidnight(now, dayOffset).getTime() + Math.floor(rng() * 86400000));
+    movements.push({
+      storeId: product.storeId,
+      productId: product.id,
+      delta: -randInt(rng, 1, 3),
+      reason: "ADJUSTMENT",
+      orderId: null,
+      note: DEMO_TAG,
+      occurredAt: when,
+    });
+  }
+  for (const sale of sales) {
+    if (sale.status === "PAID" && rng() < 0.05) {
+      const returnDelayDays = randInt(rng, 1, 10);
+      const returnAt = new Date(
+        Math.min(now.getTime(), sale.placedAt.getTime() + returnDelayDays * 86400000)
+      );
+      movements.push({
+        storeId: product.storeId,
+        productId: product.id,
+        delta: 1,
+        reason: "RETURN",
+        orderId: sale.orderId,
+        note: DEMO_TAG,
+        occurredAt: returnAt,
+      });
+    }
+  }
+
+  return movements;
+}
+
+async function seedInventory(prisma, movements) {
+  await chunked(movements, 1000, async (batch) => {
+    await prisma.inventoryMovement.createMany({ data: batch });
+  });
+}
+
 // ---------- Module exports (for tests) ---------------------------------------
 
 module.exports = {
