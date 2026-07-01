@@ -183,3 +183,45 @@ describe("computeCorrectiveMovements", () => {
     expect(computeCorrectiveMovements(products, moves, now)).toEqual([]);
   });
 });
+
+const { buildFxRates } = require("../seed-demo.cjs");
+
+describe("buildFxRates", () => {
+  const now = new Date(Date.UTC(2026, 6, 1)); // Jul 1 2026 midnight UTC
+
+  it("produces 20 pairs x 92 days = 1840 rows", () => {
+    const rng = mulberry32(xfnv1a("fx"));
+    const rows = buildFxRates(rng, now);
+    expect(rows).toHaveLength(20 * 92);
+  });
+
+  it("every asOf is exact midnight UTC", () => {
+    const rng = mulberry32(xfnv1a("fx-midnight"));
+    const rows = buildFxRates(rng, now);
+    for (const r of rows) {
+      const d = r.asOf;
+      expect(d.getUTCHours()).toBe(0);
+      expect(d.getUTCMinutes()).toBe(0);
+      expect(d.getUTCSeconds()).toBe(0);
+      expect(d.getUTCMilliseconds()).toBe(0);
+    }
+  });
+
+  it("rate strings are non-empty and parseable numbers", () => {
+    const rng = mulberry32(xfnv1a("fx-numeric"));
+    const rows = buildFxRates(rng, now);
+    for (const r of rows.slice(0, 20)) {
+      const n = Number(r.rate);
+      expect(Number.isFinite(n)).toBe(true);
+      expect(n).toBeGreaterThan(0);
+    }
+  });
+
+  it("USD->USD is not present (identity excluded)", () => {
+    const rng = mulberry32(xfnv1a("fx-id"));
+    const rows = buildFxRates(rng, now);
+    for (const r of rows) {
+      expect(r.baseCurrency === r.quoteCurrency).toBe(false);
+    }
+  });
+});

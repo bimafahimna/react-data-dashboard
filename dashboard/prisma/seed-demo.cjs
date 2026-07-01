@@ -763,11 +763,80 @@ function assertInventoryInvariants(products, allMovements) {
   }
 }
 
+// ---------- FX rate generation ---------------------------------------------
+
+/**
+ * Build the full daily FX matrix for the demo window.
+ *
+ * Model:
+ *   For each non-USD currency X, a seeded AR(1) walk drives USD->X across
+ *   the window with sigma ~= 0.3%/day, clamped to +/-4%. Cross rates and
+ *   inverse rates are derived by triangulation through USD each day so the
+ *   matrix stays internally consistent.
+ *
+ * Returns an array of Prisma FxRate.create data:
+ *   { baseCurrency, quoteCurrency, rate: string, asOf: Date }
+ */
+function buildFxRates(rng, now) {
+  const days = WINDOW_DAYS;
+  const nonUsd = DEMO_CURRENCIES.filter((c) => c !== "USD");
+  const walks = {}; // ccy -> Array<multiplier> length=days
+  for (const ccy of nonUsd) {
+    const arr = new Array(days);
+    let cur = 0;
+    const phi = 0.85; // AR(1) coefficient
+    const sigma = 0.003;
+    for (let i = 0; i < days; i++) {
+      cur = phi * cur + sigma * gaussian(rng);
+      cur = Math.max(-0.04, Math.min(0.04, cur));
+      arr[i] = 1 + cur;
+    }
+    walks[ccy] = arr;
+  }
+
+  const rows = [];
+  for (let i = 0; i < days; i++) {
+    // dayOffset -91 .. 0 (inclusive); we want oldest first up to today.
+    const dayOffset = -(days - 1) + i;
+    const asOf = utcMidnight(now, dayOffset);
+
+    // Compute today's USD -> X for every X in DEMO_CURRENCIES.
+    const usdTo = {};
+    for (const ccy of DEMO_CURRENCIES) {
+      if (ccy === "USD") { usdTo[ccy] = 1.0; continue; }
+      usdTo[ccy] = USD_ANCHORS[ccy] * walks[ccy][i];
+    }
+
+    // Emit all directed pairs (base != quote).
+    for (const base of DEMO_CURRENCIES) {
+      for (const quote of DEMO_CURRENCIES) {
+        if (base === quote) continue;
+        // rate = usdTo[quote] / usdTo[base]  (triangulation through USD)
+        const rate = usdTo[quote] / usdTo[base];
+        rows.push({
+          baseCurrency: base,
+          quoteCurrency: quote,
+          rate: rate.toFixed(8),
+          asOf,
+        });
+      }
+    }
+  }
+  return rows;
+}
+
+async function seedFxRates(prisma, rows) {
+  await chunked(rows, 1000, async (batch) => {
+    await prisma.fxRate.createMany({ data: batch, skipDuplicates: true });
+  });
+}
+
 // ---------- Module exports (for tests) ---------------------------------------
 
 module.exports = {
   xfnv1a, mulberry32, randInt, pick, weightedPick, gaussian, chunked,
   parseArgs, computeCorrectiveMovements, assertInventoryInvariants,
+  buildFxRates,
 };
 
 // Auto-run main() only when invoked directly (not when required by tests).
