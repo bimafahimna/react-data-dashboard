@@ -116,3 +116,70 @@ describe("parseArgs", () => {
     expect(() => parseArgs([...base, "--clear", "--keep"])).toThrow(/mutually exclusive/);
   });
 });
+
+const { assertInventoryInvariants, computeCorrectiveMovements } = require("../seed-demo.cjs");
+
+describe("assertInventoryInvariants", () => {
+  const mkProduct = (sku, profile, reorderPoint) => ({
+    sku, id: 1, storeId: 1, _profile: profile, reorderPoint,
+  });
+  const mkMove = (productId, delta) => ({ productId, delta });
+
+  it("passes for a HEALTHY product above reorder", () => {
+    const products = [mkProduct("S-1", "HEALTHY", 5)];
+    const moves = [mkMove(1, 20)];
+    expect(() => assertInventoryInvariants(products, moves)).not.toThrow();
+  });
+
+  it("fails when LOW product ends at or above reorderPoint", () => {
+    const products = [mkProduct("S-2", "LOW", 5)];
+    const moves = [mkMove(1, 5)]; // final = 5, expected < 5
+    expect(() => assertInventoryInvariants(products, moves)).toThrow(/DEMO.*LOW|S-2/);
+  });
+
+  it("fails when CRITICAL product ends above 1", () => {
+    const products = [mkProduct("S-3", "CRITICAL", 5)];
+    const moves = [mkMove(1, 2)];
+    expect(() => assertInventoryInvariants(products, moves)).toThrow(/CRITICAL|S-3/);
+  });
+
+  it("fails when TOP product ends below reorder*3", () => {
+    const products = [mkProduct("S-4", "TOP", 10)];
+    const moves = [mkMove(1, 29)]; // needs >=30
+    expect(() => assertInventoryInvariants(products, moves)).toThrow(/TOP|S-4/);
+  });
+
+  it("fails when any product ends below zero", () => {
+    const products = [mkProduct("S-5", "HEALTHY", 5)];
+    const moves = [mkMove(1, 10), mkMove(1, -20)];
+    expect(() => assertInventoryInvariants(products, moves)).toThrow(/negative|S-5/);
+  });
+});
+
+describe("computeCorrectiveMovements", () => {
+  const now = new Date(Date.UTC(2026, 6, 1));
+  it("emits a PURCHASE when actual < target", () => {
+    const products = [{ id: 1, storeId: 1, _profile: "HEALTHY", _targetOnHand: 50 }];
+    const moves = [{ productId: 1, delta: 30 }];
+    const corr = computeCorrectiveMovements(products, moves, now);
+    expect(corr).toHaveLength(1);
+    expect(corr[0].delta).toBe(20);
+    expect(corr[0].reason).toBe("PURCHASE");
+    expect(corr[0].note).toBe("demo-seed-v1 corrective");
+  });
+
+  it("emits an ADJUSTMENT when actual > target", () => {
+    const products = [{ id: 1, storeId: 1, _profile: "HEALTHY", _targetOnHand: 50 }];
+    const moves = [{ productId: 1, delta: 70 }];
+    const corr = computeCorrectiveMovements(products, moves, now);
+    expect(corr).toHaveLength(1);
+    expect(corr[0].delta).toBe(-20);
+    expect(corr[0].reason).toBe("ADJUSTMENT");
+  });
+
+  it("emits nothing when actual == target", () => {
+    const products = [{ id: 1, storeId: 1, _profile: "HEALTHY", _targetOnHand: 50 }];
+    const moves = [{ productId: 1, delta: 50 }];
+    expect(computeCorrectiveMovements(products, moves, now)).toEqual([]);
+  });
+});

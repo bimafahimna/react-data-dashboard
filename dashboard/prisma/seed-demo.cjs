@@ -700,11 +700,74 @@ async function seedInventory(prisma, movements) {
   });
 }
 
+// ---------- Corrective row + invariants -------------------------------------
+
+/**
+ * Given the products (with _profile, _targetOnHand) and all movements
+ * generated so far, emit one corrective movement per product that closes
+ * the gap between actualOnHand and _targetOnHand. Occurs at (to - 1 hour).
+ */
+function computeCorrectiveMovements(products, movements, now) {
+  const sumByProduct = new Map();
+  for (const m of movements) {
+    sumByProduct.set(m.productId, (sumByProduct.get(m.productId) || 0) + m.delta);
+  }
+  const when = new Date(now.getTime() - 3600 * 1000);
+  const corrective = [];
+  for (const p of products) {
+    const actual = sumByProduct.get(p.id) || 0;
+    const gap = p._targetOnHand - actual;
+    if (gap === 0) continue;
+    corrective.push({
+      storeId: p.storeId,
+      productId: p.id,
+      delta: gap,
+      reason: gap > 0 ? "PURCHASE" : "ADJUSTMENT",
+      orderId: null,
+      note: DEMO_TAG_CORRECTIVE,
+      occurredAt: when,
+    });
+  }
+  return corrective;
+}
+
+/**
+ * Sanity-check the engineered inventory profiles. Should never fire after
+ * computeCorrectiveMovements has been applied. Failure => throw, caller
+ * rolls back the transaction.
+ */
+function assertInventoryInvariants(products, allMovements) {
+  const sumByProduct = new Map();
+  for (const m of allMovements) {
+    sumByProduct.set(m.productId, (sumByProduct.get(m.productId) || 0) + m.delta);
+  }
+  const errors = [];
+  for (const p of products) {
+    const final = sumByProduct.get(p.id) || 0;
+    if (final < 0) {
+      errors.push(`  ${p.sku}: negative final on-hand (${final})`);
+      continue;
+    }
+    if (p._profile === "LOW" && !(final > 0 && final < p.reorderPoint)) {
+      errors.push(`  ${p.sku}: expected LOW (0 < final < reorderPoint=${p.reorderPoint}), got ${final}`);
+    } else if (p._profile === "CRITICAL" && final > 1) {
+      errors.push(`  ${p.sku}: expected CRITICAL (final <= 1), got ${final}`);
+    } else if (p._profile === "TOP" && final < p.reorderPoint * 3) {
+      errors.push(`  ${p.sku}: expected TOP (final >= reorderPoint*3=${p.reorderPoint * 3}), got ${final}`);
+    }
+  }
+  if (errors.length > 0) {
+    throw new Error(
+      "Invariant failed (seed-script bug):\n" + errors.join("\n")
+    );
+  }
+}
+
 // ---------- Module exports (for tests) ---------------------------------------
 
 module.exports = {
   xfnv1a, mulberry32, randInt, pick, weightedPick, gaussian, chunked,
-  parseArgs,
+  parseArgs, computeCorrectiveMovements, assertInventoryInvariants,
 };
 
 // Auto-run main() only when invoked directly (not when required by tests).
