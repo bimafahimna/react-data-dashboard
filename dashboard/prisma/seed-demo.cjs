@@ -205,6 +205,73 @@ async function resolveOwner(prisma) {
   return user;
 }
 
+// ---------- Clear phase -----------------------------------------------------
+
+/**
+ * Deletes all rows this script has ever created. Never touches User rows,
+ * Categories (shared/idempotent), or the smoke seed's data.
+ *
+ * Runs at the top level (outside $transaction) so each DELETE commits before
+ * the next, respecting FK order.
+ */
+async function clearDemo(prisma) {
+  const t0 = Date.now();
+  const counts = {};
+
+  counts.movements = (
+    await prisma.inventoryMovement.deleteMany({
+      where: { note: { startsWith: DEMO_TAG_PREFIX } },
+    })
+  ).count;
+
+  // orderItem cascades on Order delete (schema: onDelete: Cascade), so we can
+  // let Order deletion handle items. But we count them first for the summary.
+  counts.orderItems = await prisma.orderItem.count({
+    where: { order: { customer: { email: { endsWith: "@demo.seed" } } } },
+  });
+
+  counts.orders = (
+    await prisma.order.deleteMany({
+      where: { customer: { email: { endsWith: "@demo.seed" } } },
+    })
+  ).count;
+
+  counts.products = (
+    await prisma.product.deleteMany({ where: { sku: { startsWith: "DEMO-" } } })
+  ).count;
+
+  counts.customers = (
+    await prisma.customer.deleteMany({ where: { email: { endsWith: "@demo.seed" } } })
+  ).count;
+
+  counts.stores = (
+    await prisma.store.deleteMany({ where: { name: { startsWith: "Demo — " } } })
+  ).count;
+
+  // FX: raw SQL because Prisma cannot express the midnight-UTC predicate.
+  // "asOf" is a timestamptz; epoch % 86400 == 0 iff it is exact UTC midnight.
+  // We use Prisma.join to build a safe IN-list rather than relying on
+  // tagged-template array-to-Postgres-array conversion.
+  const { Prisma } = require("../generated/prisma");
+  const ccyList = Prisma.join(DEMO_CURRENCIES);
+  const fxResult = await prisma.$executeRaw`
+    DELETE FROM "FxRate"
+    WHERE "baseCurrency" IN (${ccyList})
+      AND "quoteCurrency" IN (${ccyList})
+      AND CAST(EXTRACT(EPOCH FROM "asOf") AS BIGINT) % 86400 = 0
+  `;
+  counts.fxRates = fxResult;
+
+  const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+  console.log(
+    `Cleared demo rows (${elapsed}s): ` +
+      `movements=${counts.movements}, orderItems=${counts.orderItems}, ` +
+      `orders=${counts.orders}, products=${counts.products}, ` +
+      `customers=${counts.customers}, stores=${counts.stores}, fxRates=${counts.fxRates}`
+  );
+  return counts;
+}
+
 // ---------- Module exports (for tests) ---------------------------------------
 
 module.exports = {
@@ -231,7 +298,15 @@ if (require.main === module) {
 async function main(prisma, flags) {
   const owner = await resolveOwner(prisma);
   console.log(`Owner: ${owner.email} (accountId=${owner.accountId})`);
-  console.log(`Flags: ${JSON.stringify(flags)}`);
-  console.error("seed-demo.cjs: main() not yet implemented (Task 12).");
+
+  if (!flags.keep) {
+    await clearDemo(prisma);
+  }
+  if (flags.clear) {
+    console.log("Clear-only mode: done.");
+    return;
+  }
+
+  console.error("seed-demo.cjs: seed phase not yet implemented (Task 12).");
   process.exit(1);
 }
