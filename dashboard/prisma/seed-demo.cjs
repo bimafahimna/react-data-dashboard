@@ -374,6 +374,58 @@ async function seedProducts(prisma, allProducts) {
   return allProducts;
 }
 
+// ---------- Customer generation ---------------------------------------------
+
+function buildCustomers(rng) {
+  const customers = [];
+  for (let i = 1; i <= NUM_CUSTOMERS; i++) {
+    const nnn = String(i).padStart(3, "0");
+    const first = pick(rng, CUSTOMER_FIRST_NAMES);
+    const last = pick(rng, CUSTOMER_LAST_NAMES);
+    customers.push({
+      email: `demo-customer-${nnn}@demo.seed`,
+      fullName: `${first} ${last}`,
+      // firstOrderAt is set to null here; we update it after orders are generated.
+    });
+  }
+  return customers;
+}
+
+async function seedCustomers(prisma, customers) {
+  await chunked(customers, 500, async (batch) => {
+    await prisma.customer.createMany({ data: batch, skipDuplicates: true });
+  });
+  const rows = await prisma.customer.findMany({
+    where: { email: { endsWith: "@demo.seed" } },
+  });
+  const byEmail = new Map(rows.map((r) => [r.email, r]));
+  for (const c of customers) {
+    const row = byEmail.get(c.email);
+    if (!row) throw new Error(`Customer not persisted: ${c.email}`);
+    c.id = row.id;
+  }
+  return customers;
+}
+
+/**
+ * After orders are generated, backfill each customer's earliest placedAt as
+ * firstOrderAt. Called once at the end of order generation.
+ */
+async function backfillFirstOrderAt(prisma, customers, orders) {
+  const earliestByCustomerId = new Map();
+  for (const o of orders) {
+    const cur = earliestByCustomerId.get(o.customerId);
+    if (!cur || o.placedAt < cur) earliestByCustomerId.set(o.customerId, o.placedAt);
+  }
+  await chunked(Array.from(earliestByCustomerId.entries()), 100, async (batch) => {
+    await Promise.all(
+      batch.map(([customerId, firstOrderAt]) =>
+        prisma.customer.update({ where: { id: customerId }, data: { firstOrderAt } })
+      )
+    );
+  });
+}
+
 // ---------- Module exports (for tests) ---------------------------------------
 
 module.exports = {
