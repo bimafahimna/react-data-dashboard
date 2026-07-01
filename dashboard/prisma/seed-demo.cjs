@@ -272,6 +272,108 @@ async function clearDemo(prisma) {
   return counts;
 }
 
+// ---------- Category + Store seeding ----------------------------------------
+
+async function seedCategories(prisma) {
+  const rows = await Promise.all(
+    CATEGORIES.map((name) =>
+      prisma.category.upsert({ where: { name }, create: { name }, update: {} })
+    )
+  );
+  const byName = new Map(rows.map((c) => [c.name, c]));
+  return byName;
+}
+
+async function seedStores(prisma, ownerAccountId) {
+  const created = [];
+  for (const s of STORES) {
+    // No unique on (name, ownerId); use find-or-create.
+    let store = await prisma.store.findFirst({
+      where: { name: s.name, ownerId: ownerAccountId },
+    });
+    if (!store) {
+      store = await prisma.store.create({
+        data: {
+          name: s.name,
+          location: s.location,
+          baseCurrency: s.baseCurrency,
+          ownerId: ownerAccountId,
+        },
+      });
+    }
+    created.push({ ...s, id: store.id });
+  }
+  return created; // each element has: { code, name, location, baseCurrency, baseOrdersPerDay, id }
+}
+
+// ---------- Product generation ----------------------------------------------
+
+/**
+ * For a given store, produce 10 products split by profile:
+ *   2 TOP, 5 HEALTHY, 2 LOW, 1 CRITICAL.
+ * Each product is assigned a category (round-robin across CATEGORIES) and a
+ * price randomly sampled from the category's cents band.
+ */
+function buildProducts(rng, store, categoriesByName) {
+  const products = [];
+  let nnn = 0;
+
+  const profileList = [
+    ...Array(PRODUCT_PROFILE.TOP.perStore).fill("TOP"),
+    ...Array(PRODUCT_PROFILE.HEALTHY.perStore).fill("HEALTHY"),
+    ...Array(PRODUCT_PROFILE.LOW.perStore).fill("LOW"),
+    ...Array(PRODUCT_PROFILE.CRITICAL.perStore).fill("CRITICAL"),
+  ];
+
+  for (const profile of profileList) {
+    nnn += 1;
+    const category = CATEGORIES[(nnn - 1) % CATEGORIES.length];
+    const namePool = PRODUCT_NAMES[category];
+    const name = namePool[(nnn - 1) % namePool.length];
+    const [minPrice, maxPrice] = CATEGORY_PRICE_BAND_CENTS[category];
+    const unitPriceCents = randInt(rng, minPrice, maxPrice);
+    const reorderPoint = randInt(rng, 5, 15);
+
+    // Deterministic target on-hand from the profile band.
+    const p = PRODUCT_PROFILE[profile];
+    let targetOnHand;
+    if (profile === "TOP")      targetOnHand = randInt(rng, p.initial[0] / 4 | 0, p.initial[1] / 2 | 0);
+    else if (profile === "HEALTHY") targetOnHand = randInt(rng, reorderPoint * 2, reorderPoint * 4);
+    else if (profile === "LOW") targetOnHand = randInt(rng, 1, reorderPoint - 1);
+    else /* CRITICAL */          targetOnHand = randInt(rng, 0, 1);
+
+    products.push({
+      sku: `DEMO-${store.code}-${String(nnn).padStart(3, "0")}`,
+      name: `${name} (${store.code})`,
+      categoryId: categoriesByName.get(category).id,
+      storeId: store.id,
+      unitPriceCents,
+      reorderPoint,
+      // Not persisted; used during inventory generation:
+      _profile: profile,
+      _initialStock: randInt(rng, p.initial[0], p.initial[1]),
+      _targetOnHand: targetOnHand,
+    });
+  }
+  return products;
+}
+
+async function seedProducts(prisma, allProducts) {
+  const persistable = allProducts.map(({ _profile, _initialStock, _targetOnHand, ...rest }) => rest);
+  await chunked(persistable, 500, async (batch) => {
+    await prisma.product.createMany({ data: batch, skipDuplicates: true });
+  });
+  // Refetch to get IDs and merge back onto the in-memory objects (preserves _profile etc).
+  const rows = await prisma.product.findMany({ where: { sku: { startsWith: "DEMO-" } } });
+  const bySku = new Map(rows.map((r) => [r.sku, r]));
+  for (const p of allProducts) {
+    const row = bySku.get(p.sku);
+    if (!row) throw new Error(`Product not persisted: ${p.sku}`);
+    p.id = row.id;
+  }
+  return allProducts;
+}
+
 // ---------- Module exports (for tests) ---------------------------------------
 
 module.exports = {
