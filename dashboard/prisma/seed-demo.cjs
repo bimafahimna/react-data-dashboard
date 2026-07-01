@@ -43,9 +43,56 @@ function mulberry32(seed) {
   };
 }
 
+// ---------- Random-selection helpers ----------------------------------------
+
+function randInt(rng, min, max) {
+  return Math.floor(rng() * (max - min + 1)) + min;
+}
+
+function pick(rng, arr) {
+  return arr[Math.floor(rng() * arr.length)];
+}
+
+function weightedPick(rng, items, weights) {
+  if (items.length !== weights.length) {
+    throw new Error("weightedPick: items/weights length mismatch");
+  }
+  let total = 0;
+  for (const w of weights) total += w;
+  if (total <= 0) {
+    throw new Error("weightedPick: total weight must be > 0");
+  }
+  let r = rng() * total;
+  for (let i = 0; i < items.length; i++) {
+    r -= weights[i];
+    if (r < 0) return items[i];
+  }
+  return items[items.length - 1]; // float fallback
+}
+
+/** Standard normal via Box-Muller. */
+function gaussian(rng) {
+  let u = 0;
+  let v = 0;
+  while (u === 0) u = rng();
+  while (v === 0) v = rng();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+/**
+ * chunked(arr, size, asyncFn): call asyncFn(chunk) sequentially for each
+ * consecutive slice of `size` elements. Sequential (not parallel) so we do not
+ * blow up the Postgres connection pool during bulk inserts.
+ */
+async function chunked(arr, size, fn) {
+  for (let i = 0; i < arr.length; i += size) {
+    await fn(arr.slice(i, i + size));
+  }
+}
+
 // ---------- Module exports (for tests) ---------------------------------------
 
-module.exports = { xfnv1a, mulberry32 };
+module.exports = { xfnv1a, mulberry32, randInt, pick, weightedPick, gaussian, chunked };
 
 // Auto-run main() only when invoked directly (not when required by tests).
 if (require.main === module) {
