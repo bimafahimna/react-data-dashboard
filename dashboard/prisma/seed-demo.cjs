@@ -164,13 +164,74 @@ const CUSTOMER_LAST_NAMES = [
   "Rossi", "Müller", "Dubois", "Ivanov", "Sato", "Rahman", "O'Neill", "Costa", "Fischer",
 ];
 
+// ---------- Argv / env parsing ----------------------------------------------
+
+function parseArgs(argv) {
+  const flags = { clear: false, keep: false };
+  for (const arg of argv.slice(2)) {
+    if (arg === "--clear") flags.clear = true;
+    else if (arg === "--keep") flags.keep = true;
+    else {
+      throw new Error(`Unknown argument: ${arg}`);
+    }
+  }
+  if (flags.clear && flags.keep) {
+    throw new Error("--clear and --keep are mutually exclusive.");
+  }
+  return flags;
+}
+
+// ---------- Owner resolution ------------------------------------------------
+
+async function resolveOwner(prisma) {
+  const email = process.env.SEED_OWNER_EMAIL;
+  if (email) {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      throw new Error(
+        `SEED_OWNER_EMAIL=${email} not found. Sign up at http://localhost:3000/signup first, ` +
+          `or unset SEED_OWNER_EMAIL to fall back to the first user.`
+      );
+    }
+    return user;
+  }
+  const user = await prisma.user.findFirst({ orderBy: { accountId: "asc" } });
+  if (!user) {
+    throw new Error(
+      "No User row found. Sign up at http://localhost:3000/signup first, " +
+        "or set SEED_OWNER_EMAIL to an existing account."
+    );
+  }
+  return user;
+}
+
 // ---------- Module exports (for tests) ---------------------------------------
 
-module.exports = { xfnv1a, mulberry32, randInt, pick, weightedPick, gaussian, chunked };
+module.exports = {
+  xfnv1a, mulberry32, randInt, pick, weightedPick, gaussian, chunked,
+  parseArgs,
+};
 
 // Auto-run main() only when invoked directly (not when required by tests).
 if (require.main === module) {
-  // main() will be added in Task 12; keep a no-op placeholder for now.
+  const { PrismaPg } = require("@prisma/adapter-pg");
+  const { PrismaClient } = require("../generated/prisma");
+  const flags = parseArgs(process.argv);
+  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+  const prisma = new PrismaClient({ adapter });
+  main(prisma, flags)
+    .catch((e) => {
+      console.error(e.message || e);
+      process.exit(1);
+    })
+    .finally(() => prisma.$disconnect());
+}
+
+// main() is defined in Task 12. Provide a placeholder so the file still loads.
+async function main(prisma, flags) {
+  const owner = await resolveOwner(prisma);
+  console.log(`Owner: ${owner.email} (accountId=${owner.accountId})`);
+  console.log(`Flags: ${JSON.stringify(flags)}`);
   console.error("seed-demo.cjs: main() not yet implemented (Task 12).");
   process.exit(1);
 }

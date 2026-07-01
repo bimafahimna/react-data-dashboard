@@ -95,3 +95,24 @@ describe("chunked", () => {
     expect(seen).toEqual([[1, 2], [3, 4], [5]]);
   });
 });
+
+const { parseArgs } = require("../seed-demo.cjs");
+
+describe("parseArgs", () => {
+  const base = ["node", "seed-demo.cjs"];
+  it("default: no flags", () => {
+    expect(parseArgs(base)).toEqual({ clear: false, keep: false });
+  });
+  it("--clear sets clear", () => {
+    expect(parseArgs([...base, "--clear"])).toEqual({ clear: true, keep: false });
+  });
+  it("--keep sets keep", () => {
+    expect(parseArgs([...base, "--keep"])).toEqual({ clear: false, keep: true });
+  });
+  it("rejects unknown flags", () => {
+    expect(() => parseArgs([...base, "--nope"])).toThrow(/Unknown argument/);
+  });
+  it("rejects --clear + --keep together", () => {
+    expect(() => parseArgs([...base, "--clear", "--keep"])).toThrow(/mutually exclusive/);
+  });
+});
