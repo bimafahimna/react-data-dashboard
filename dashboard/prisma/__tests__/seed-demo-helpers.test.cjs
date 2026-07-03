@@ -225,3 +225,70 @@ describe("buildFxRates", () => {
     }
   });
 });
+
+const { runSeedDemo } = require("../seed-demo.cjs");
+
+describe("runSeedDemo", () => {
+  it("is exported as a function", () => {
+    expect(typeof runSeedDemo).toBe("function");
+  });
+
+  it("mode: 'clear' returns a summary with populated cleared and null inserted", async () => {
+    // Stub Prisma: every deleteMany returns { count: 0 }, count returns 0,
+    // $executeRaw returns 0, user.findFirst returns a fake owner.
+    const noopDelete = async () => ({ count: 0 });
+    const stubPrisma = {
+      inventoryMovement: { deleteMany: noopDelete },
+      orderItem: { count: async () => 0 },
+      order: { deleteMany: noopDelete },
+      product: { deleteMany: noopDelete },
+      customer: { deleteMany: noopDelete },
+      store: { deleteMany: noopDelete },
+      user: { findFirst: async () => ({ accountId: 1, email: "stub@example.com" }) },
+      $executeRaw: async () => 0,
+    };
+
+    const summary = await runSeedDemo({ prisma: stubPrisma, mode: "clear" });
+
+    expect(summary.mode).toBe("clear");
+    expect(typeof summary.ranAt).toBe("string");
+    expect(typeof summary.durationMs).toBe("number");
+    expect(typeof summary.seedString).toBe("string");
+    expect(summary.seedString.length).toBeGreaterThan(0);
+    expect(summary.cleared).not.toBeNull();
+    expect(summary.cleared).toEqual({
+      inventoryMovements: 0,
+      orderItems: 0,
+      orders: 0,
+      products: 0,
+      customers: 0,
+      stores: 0,
+      fxRates: 0,
+    });
+    expect(summary.inserted).toBeNull();
+  });
+
+  it("seedSuffix is appended to seedString", async () => {
+    const noopDelete = async () => ({ count: 0 });
+    const stubPrisma = {
+      inventoryMovement: { deleteMany: noopDelete },
+      orderItem: { count: async () => 0 },
+      order: { deleteMany: noopDelete },
+      product: { deleteMany: noopDelete },
+      customer: { deleteMany: noopDelete },
+      store: { deleteMany: noopDelete },
+      user: { findFirst: async () => ({ accountId: 1, email: "stub@example.com" }) },
+      $executeRaw: async () => 0,
+    };
+
+    const a = await runSeedDemo({ prisma: stubPrisma, mode: "clear", seedSuffix: "abc" });
+    const b = await runSeedDemo({ prisma: stubPrisma, mode: "clear", seedSuffix: "xyz" });
+    expect(a.seedString.endsWith("-abc")).toBe(true);
+    expect(b.seedString.endsWith("-xyz")).toBe(true);
+    expect(a.seedString).not.toBe(b.seedString);
+  });
+
+  it("throws on unknown mode", async () => {
+    await expect(runSeedDemo({ prisma: {}, mode: "bogus" })).rejects.toThrow(/unknown mode/i);
+  });
+});

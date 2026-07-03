@@ -843,36 +843,83 @@ module.exports = {
   xfnv1a, mulberry32, randInt, pick, weightedPick, gaussian, chunked,
   parseArgs, computeCorrectiveMovements, assertInventoryInvariants,
   buildFxRates,
+  runSeedDemo,
 };
 
-// Auto-run main() only when invoked directly (not when required by tests).
+// Auto-run only when invoked directly (not when required by tests / server actions).
 if (require.main === module) {
-  const { PrismaPg } = require("@prisma/adapter-pg");
-  const { PrismaClient } = require("../generated/prisma");
-  const flags = parseArgs(process.argv);
-  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
-  const prisma = new PrismaClient({ adapter });
-  main(prisma, flags)
-    .catch((e) => {
-      console.error(e.message || e);
-      process.exit(1);
-    })
-    .finally(() => prisma.$disconnect());
+  (async () => {
+    const { PrismaPg } = require("@prisma/adapter-pg");
+    const { PrismaClient } = require("../generated/prisma");
+    const flags = parseArgs(process.argv);
+    if (!process.env.DATABASE_URL) {
+      throw new Error("DATABASE_URL is required");
+    }
+    const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+    const prisma = new PrismaClient({ adapter });
+    try {
+      const mode = flags.clear ? "clear" : flags.keep ? "keep" : "reseed";
+      const summary = await runSeedDemo({ prisma, mode });
+      printSummary(summary);
+    } finally {
+      await prisma.$disconnect();
+    }
+  })().catch((e) => {
+    console.error(e.message || e);
+    process.exit(1);
+  });
 }
 
-async function main(prisma, flags) {
+/**
+ * Public entry point. Reusable from CLI or a Next.js server action.
+ *
+ * @param {Object} opts
+ * @param {import("../generated/prisma").PrismaClient} opts.prisma
+ * @param {"reseed"|"keep"|"clear"} opts.mode
+ * @param {string=} opts.seedSuffix  Appended to SEED_RANDOM_SEED so callers
+ *                                   (e.g. the UI "Add batch" button) can
+ *                                   produce a different dataset per invocation
+ *                                   while remaining deterministic per call.
+ * @returns {Promise<Object>} summary; see docs/superpowers/specs/2026-07-02-admin-demo-data-tool-design.md §3.
+ */
+async function runSeedDemo({ prisma, mode, seedSuffix }) {
+  if (mode !== "reseed" && mode !== "keep" && mode !== "clear") {
+    throw new Error(`runSeedDemo: unknown mode "${mode}"`);
+  }
   const t0 = Date.now();
-  const seedString = process.env.SEED_RANDOM_SEED || "react-dashboard-demo";
+  const ranAt = new Date(t0).toISOString();
+  const flags = { clear: mode === "clear", keep: mode === "keep" };
+  const seedString =
+    (process.env.SEED_RANDOM_SEED || "react-dashboard-demo") +
+    (seedSuffix ? `-${seedSuffix}` : "");
+
   const owner = await resolveOwner(prisma);
   console.log(`Owner: ${owner.email} (accountId=${owner.accountId})`);
   console.log(`Seed string: "${seedString}"`);
 
+  let clearedCounts = null;
   if (!flags.keep) {
-    await clearDemo(prisma);
+    clearedCounts = await clearDemo(prisma);
   }
   if (flags.clear) {
     console.log("Clear-only mode: done.");
-    return;
+    return {
+      mode,
+      ranAt,
+      durationMs: Date.now() - t0,
+      seedString,
+      cleared: {
+        inventoryMovements: clearedCounts.movements,
+        orderItems: clearedCounts.orderItems,
+        orders: clearedCounts.orders,
+        products: clearedCounts.products,
+        customers: clearedCounts.customers,
+        stores: clearedCounts.stores,
+        fxRates: clearedCounts.fxRates,
+      },
+      inserted: null,
+      _extra: null,
+    };
   }
 
   const now = new Date();
@@ -975,7 +1022,38 @@ async function main(prisma, flags) {
     { timeout: 120_000, maxWait: 10_000 }
   );
 
-  printSummary(stats, seedString, ((Date.now() - t0) / 1000).toFixed(1));
+  return {
+    mode,
+    ranAt,
+    durationMs: Date.now() - t0,
+    seedString,
+    cleared: clearedCounts
+      ? {
+          inventoryMovements: clearedCounts.movements,
+          orderItems: clearedCounts.orderItems,
+          orders: clearedCounts.orders,
+          products: clearedCounts.products,
+          customers: clearedCounts.customers,
+          stores: clearedCounts.stores,
+          fxRates: clearedCounts.fxRates,
+        }
+      : null,
+    inserted: {
+      stores: stats.stores,
+      products: stats.products,
+      customers: stats.customers,
+      orders: stats.orders,
+      orderItems: stats.orderItems,
+      inventoryMovements: stats.movements,
+      fxRates: stats.fxRates,
+    },
+    _extra: {
+      productsByProfile: stats.productsByProfile,
+      ordersByStatus: stats.ordersByStatus,
+      categories: stats.categories,
+      window: { from: stats.from, to: stats.to },
+    },
+  };
 }
 
 function countByProfile(products) {
@@ -990,27 +1068,43 @@ function countByStatus(orders) {
   return c;
 }
 
-function printSummary(s, seedString, elapsedSec) {
+function printSummary(summary) {
+  const elapsedSec = (summary.durationMs / 1000).toFixed(1);
+  if (summary.mode === "clear") {
+    const c = summary.cleared;
+    console.log(`\nDemo clear complete (elapsed ${elapsedSec}s):`);
+    console.log(
+      `  Cleared: movements=${c.inventoryMovements}, orderItems=${c.orderItems}, ` +
+        `orders=${c.orders}, products=${c.products}, customers=${c.customers}, ` +
+        `stores=${c.stores}, fxRates=${c.fxRates}\n`
+    );
+    return;
+  }
+  const s = summary.inserted;
+  const extra = summary._extra;
   const storeLabels = STORES.map((x) => `${x.location} ${x.baseCurrency}`).join(", ");
-  console.log(`\nDemo seed complete (seed="${seedString}", elapsed ${elapsedSec}s):`);
+  console.log(`\nDemo seed complete (seed="${summary.seedString}", elapsed ${elapsedSec}s):`);
   console.log(`  Stores:      ${s.stores} (${storeLabels})`);
-  console.log(`  Categories:  ${s.categories}`);
+  console.log(`  Categories:  ${extra.categories}`);
   console.log(
     `  Products:    ${s.products}  ` +
-      `(${s.productsByProfile.TOP} top-sellers, ${s.productsByProfile.LOW} LOW, ` +
-      `${s.productsByProfile.CRITICAL} CRITICAL, ${s.productsByProfile.HEALTHY} healthy)`
+      `(${extra.productsByProfile.TOP} top-sellers, ${extra.productsByProfile.LOW} LOW, ` +
+      `${extra.productsByProfile.CRITICAL} CRITICAL, ${extra.productsByProfile.HEALTHY} healthy)`
   );
   console.log(`  Customers:   ${s.customers}  (~${REPEAT_POOL_SIZE} repeat)`);
   console.log(
     `  Orders:      ${s.orders}  ` +
-      `(PAID ${s.ordersByStatus.PAID} / PENDING ${s.ordersByStatus.PENDING} / ` +
-      `REFUNDED ${s.ordersByStatus.REFUNDED} / CANCELLED ${s.ordersByStatus.CANCELLED})`
+      `(PAID ${extra.ordersByStatus.PAID} / PENDING ${extra.ordersByStatus.PENDING} / ` +
+      `REFUNDED ${extra.ordersByStatus.REFUNDED} / CANCELLED ${extra.ordersByStatus.CANCELLED})`
   );
   console.log(`  OrderItems:  ${s.orderItems}`);
-  console.log(`  Movements:   ${s.movements}`);
-  console.log(`  FxRates:     ${s.fxRates}  (${DEMO_CURRENCIES.length}x${DEMO_CURRENCIES.length - 1} pairs x ${WINDOW_DAYS} days)`);
+  console.log(`  Movements:   ${s.inventoryMovements}`);
   console.log(
-    `  Window:      ${s.from.toISOString().slice(0, 10)} -> ${s.to.toISOString().slice(0, 10)}\n`
+    `  FxRates:     ${s.fxRates}  ` +
+      `(${DEMO_CURRENCIES.length}x${DEMO_CURRENCIES.length - 1} pairs x ${WINDOW_DAYS} days)`
+  );
+  console.log(
+    `  Window:      ${extra.window.from.toISOString().slice(0, 10)} -> ${extra.window.to.toISOString().slice(0, 10)}\n`
   );
   console.log("Open http://localhost:3000/dashboard to verify.");
 }
