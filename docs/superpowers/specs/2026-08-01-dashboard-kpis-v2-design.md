@@ -91,30 +91,29 @@ Optional (add only if profiling shows it): `Customer @@index([firstOrderAt])`.
 
 ### 5.1 Window math
 
-Three windows per request, all UTC. Built by extending the existing `resolveWindow(range, from?, to?, now?)` helper in `lib/analytics/timeframe.ts`.
+Three windows per request, all UTC. Following the existing pattern in `revenue.ts`, `getDashboardKpis` and `getPerStoreKpis` take `AnalyticsScope { from, to, ... }` and derive prev / yoy internally:
 
-Current shape (existing):
+- `current` = `[scope.from, scope.to)`.
+- `prev` = `[scope.from − Δ, scope.from)` where `Δ = scope.to − scope.from` (identical to `revenue.ts`).
+- `yoy` = `[shiftYearsUtc(scope.from, -1), shiftYearsUtc(scope.to, -1))`.
+
+`shiftYearsUtc(date, years)` is a new exported helper in `lib/analytics/timeframe.ts`:
 
 ```ts
-export interface ResolvedWindow {
-  from: Date; to: Date;
-  previousFrom: Date; previousTo: Date;      // same-length prev period, already computed
-  bucket: Bucket;
+export function shiftYearsUtc(d: Date, years: number): Date {
+  const y = d.getUTCFullYear() + years;
+  const m = d.getUTCMonth();
+  const day = d.getUTCDate();
+  const lastDayOfTargetMonth = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  const clampedDay = Math.min(day, lastDayOfTargetMonth);
+  return new Date(Date.UTC(y, m, clampedDay,
+    d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds(), d.getUTCMilliseconds()));
 }
 ```
 
-Extend to add YoY fields:
+Semantics: subtract exactly one year using calendar arithmetic on UTC year/month/day. `2028-02-29` shifts to `2027-02-28` via day clamping. DST is irrelevant because all timestamps are UTC.
 
-```ts
-export interface ResolvedWindow {
-  from: Date; to: Date;
-  previousFrom: Date; previousTo: Date;
-  yoyFrom: Date; yoyTo: Date;                // NEW
-  bucket: Bucket;
-}
-```
-
-YoY semantics: `yoyFrom / yoyTo` are `from / to` shifted back exactly one year using calendar arithmetic on UTC year/month/day. Feb 29 in a leap year maps to Feb 28 of the previous year. DST is irrelevant because all timestamps are UTC. Implemented by a private `shiftYearsUtc(d, -1)` helper that constructs a new `Date` via `Date.UTC(y-1, m, day, hh, mm, ss, ms)` and clamps day if the target month is shorter.
+`ResolvedWindow` is **not** modified in this sub-project — the extension is contained to the new `kpis.ts` module and the exported `shiftYearsUtc` helper. Later sub-projects may promote yoy into `ResolvedWindow` if a page-level need arises.
 
 ### 5.2 KPI definitions
 
@@ -259,8 +258,7 @@ Both enforce `ownerId` scoping via the repository layer. `AnalyticsScope.storeId
 
 ### 6.3 `timeframe.ts` changes
 
-- Extend `ResolvedWindow` with `yoyFrom` and `yoyTo` (see 5.1).
-- Extend `resolveWindow` to populate `yoyFrom` / `yoyTo` via a new private `shiftYearsUtc(date, delta)` helper.
+- Export a new `shiftYearsUtc(date, years): Date` helper (see 5.1).
 - Update the existing `buildDelta(current, previous): Delta` to also populate `changeNominal`, and fix the edge case where `previous === 0 && current !== 0` currently returns `"flat"` — it should return `direction: "up"` (or `"down"` for negative current), with `changePct = 0` (undefined-percent case is signalled by `previous === 0`, not by direction).
 
 Concrete post-change `buildDelta`:
@@ -281,8 +279,8 @@ Callers of `buildDelta` in existing analytics modules (`revenue.ts`, `products.t
 
 ### 6.4 `getDashboardKpis` flow
 
-1. Resolve `storeIds` from `(ownerId, scope.storeId?)` via repository.
-2. Take `from / to`, `previousFrom / previousTo`, `yoyFrom / yoyTo` from `ResolvedWindow`.
+1. Resolve `storeIds` from `(ownerId, scope.storeId?)` via the existing `getStoreIds`-style helper (see `revenue.ts` — copy the pattern into `kpis.ts`).
+2. Compute the three windows internally: current from scope, prev by subtracting `Δ = to − from` from `from`, yoy via `shiftYearsUtc(from, -1)` and `shiftYearsUtc(to, -1)`.
 3. `Promise.all` of 9 raw queries (3 shapes × 3 windows).
 4. Reduce currency-grouped rows to single numbers via `fx.convert`.
 5. For each KPI, return `{ current, deltaPrev: buildDelta(current, prev), deltaYoy: buildDelta(current, yoy) }`.
@@ -408,9 +406,10 @@ All Vitest, no new frameworks.
 ### 9.1 Pure unit — `lib/analytics/__tests__/`
 
 - `timeframe.test.ts` (extend):
-  - `resolveWindow` populates `yoyFrom / yoyTo` correctly for monthly / weekly / daily ranges.
-  - Leap-day edge: `from = 2028-02-29` produces `yoyFrom = 2027-02-28`.
-  - `buildDelta` regression tests: adds `changeNominal`; fixes the `previous = 0 && current > 0` case to `direction = "up"`; unchanged behavior for other paths.
+  - `shiftYearsUtc` shifts a normal date back by one year (`2026-06-15 → 2025-06-15`).
+  - Leap-day edge: `2028-02-29` shifts to `2027-02-28` via day clamping.
+  - UTC-only math: input with non-UTC-midnight time preserves hours/minutes/seconds/ms.
+  - `buildDelta` regression tests: adds `changeNominal`; fixes the `previous = 0 && current > 0` case to `direction = "up"` and `changePct = 0`; unchanged behavior for `up`, `down`, and `flat` paths where `previous > 0`.
 
 ### 9.2 Integration — `lib/analytics/__tests__/kpis.integration.test.ts`
 
@@ -450,7 +449,7 @@ No database migration. No data backfill. This is a pure code change.
 ## 11. Implementation order (rough — for the plan)
 
 1. `types.ts` — add `changeNominal` to `Delta`; add `KpiSummary`, `DashboardKpis`, `PerStoreKpiRow`.
-2. `timeframe.ts` — extend `ResolvedWindow` and `resolveWindow` with YoY; add `shiftYearsUtc`; update `buildDelta` for `changeNominal` and the `previous = 0` direction fix; unit tests.
+2. `timeframe.ts` — add `shiftYearsUtc`; update `buildDelta` for `changeNominal` and the `previous = 0` direction fix; unit tests.
 3. `lib/analytics/kpis.ts` — `getDashboardKpis` (9 raw queries + FX reduce), `getPerStoreKpis` (3 grouped queries + FX reduce + zero-fill).
 4. Integration tests for both functions.
 5. `KpiTile.tsx` — extend props; visual + a11y updates.
