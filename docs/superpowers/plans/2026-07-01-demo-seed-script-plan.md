@@ -34,10 +34,9 @@ All tasks are self-contained. Each task ends with running the test suite and a c
 
 - [ ] **Step 1: Write the failing test**
 
-Create `prisma/__tests__/seed-demo-helpers.test.cjs`:
+Create `prisma/__tests__/seed-demo-helpers.test.cjs` (note: `describe`/`it`/`expect` come from vitest's `globals: true` config; `require("vitest")` in a `.cjs` file is rejected by vitest 4.x, so do NOT import them explicitly):
 
 ```javascript
-const { describe, it, expect } = require("vitest");
 const { xfnv1a, mulberry32 } = require("../seed-demo.cjs");
 
 describe("xfnv1a + mulberry32", () => {
@@ -298,7 +297,7 @@ module.exports = { xfnv1a, mulberry32, randInt, pick, weightedPick, gaussian, ch
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `npx vitest run prisma/__tests__/seed-demo-helpers.test.cjs`
-Expected: PASS — 8 tests pass (3 from Task 1 + 5 new).
+Expected: PASS — 9 tests pass (3 from Task 1 + 6 new; `weightedPick` has 2 it-blocks).
 
 - [ ] **Step 5: Commit**
 
@@ -405,7 +404,7 @@ Expected output: `chunked,gaussian,mulberry32,pick,randInt,weightedPick,xfnv1a`
 - [ ] **Step 3: Verify tests still pass**
 
 Run: `npx vitest run prisma/__tests__/seed-demo-helpers.test.cjs`
-Expected: PASS — all 8 tests still pass (constants are additive).
+Expected: PASS — all 9 tests still pass (constants are additive).
 
 - [ ] **Step 4: Commit**
 
@@ -536,7 +535,7 @@ async function main(prisma, flags) {
 - [ ] **Step 4: Run tests to verify**
 
 Run: `npx vitest run prisma/__tests__/seed-demo-helpers.test.cjs`
-Expected: PASS — 13 tests (8 + 5 new).
+Expected: PASS — 14 tests (9 + 5 new).
 
 - [ ] **Step 5: Smoke-check owner resolution against a real DB (optional but recommended)**
 
@@ -670,7 +669,7 @@ Expected: unchanged from before the run.
 - [ ] **Step 4: Ensure existing tests still pass**
 
 Run: `npx vitest run prisma/__tests__/seed-demo-helpers.test.cjs`
-Expected: PASS — 13 tests.
+Expected: PASS — 14 tests.
 
 - [ ] **Step 5: Commit**
 
@@ -808,7 +807,7 @@ Expected: prints the placeholder message and exits 1. No syntax errors.
 - [ ] **Step 4: Existing tests still pass**
 
 Run: `npx vitest run prisma/__tests__/seed-demo-helpers.test.cjs`
-Expected: PASS — 13 tests.
+Expected: PASS — 14 tests.
 
 - [ ] **Step 5: Commit**
 
@@ -890,7 +889,7 @@ Expected: prints placeholder message, exits 1, no syntax errors.
 - [ ] **Step 3: Existing tests still pass**
 
 Run: `npx vitest run prisma/__tests__/seed-demo-helpers.test.cjs`
-Expected: PASS — 13 tests.
+Expected: PASS — 14 tests.
 
 - [ ] **Step 4: Commit**
 
@@ -1089,7 +1088,7 @@ Note the O(orders × items) filter inside `chunked` is fine for our scale (~2400
 - [ ] **Step 4: Compile-check + tests**
 
 Run: `node -e "require('./prisma/seed-demo.cjs')"` — expect placeholder exit 1, no syntax error.
-Run: `npx vitest run prisma/__tests__/seed-demo-helpers.test.cjs` — expect PASS 13.
+Run: `npx vitest run prisma/__tests__/seed-demo-helpers.test.cjs` — expect PASS 14.
 
 - [ ] **Step 5: Commit**
 
@@ -1228,7 +1227,7 @@ async function seedInventory(prisma, movements) {
 - [ ] **Step 2: Compile-check + tests**
 
 Run: `node -e "require('./prisma/seed-demo.cjs')"` — expect placeholder exit 1, no syntax error.
-Run: `npx vitest run prisma/__tests__/seed-demo-helpers.test.cjs` — expect PASS 13.
+Run: `npx vitest run prisma/__tests__/seed-demo-helpers.test.cjs` — expect PASS 14.
 
 - [ ] **Step 3: Commit**
 
@@ -1404,7 +1403,7 @@ module.exports = {
 - [ ] **Step 4: Run tests**
 
 Run: `npx vitest run prisma/__tests__/seed-demo-helpers.test.cjs`
-Expected: PASS — 21 tests (13 + 8 new).
+Expected: PASS — 22 tests (14 + 8 new).
 
 - [ ] **Step 5: Commit**
 
@@ -1561,7 +1560,7 @@ module.exports = {
 - [ ] **Step 4: Run tests**
 
 Run: `npx vitest run prisma/__tests__/seed-demo-helpers.test.cjs`
-Expected: PASS — 25 tests (21 + 4 new).
+Expected: PASS — 26 tests (22 + 4 new).
 
 - [ ] **Step 5: Commit**
 
@@ -1741,7 +1740,7 @@ function printSummary(s, seedString, elapsedSec) {
 - [ ] **Step 2: Run helper tests**
 
 Run: `npx vitest run prisma/__tests__/seed-demo-helpers.test.cjs`
-Expected: PASS — 25 tests.
+Expected: PASS — 26 tests.
 
 - [ ] **Step 3: End-to-end run against a real DB**
 
