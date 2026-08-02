@@ -11,6 +11,7 @@ import {
     Settings,
     HelpCircle,
     Store,
+    Database,
 } from "lucide-react";
 
 type NavItem = { label: string; href: string };
@@ -18,9 +19,11 @@ type NavItem = { label: string; href: string };
 export default function Sidebar({
     isLoggedIn,
     stores,
+    isAdmin,
 }: {
     isLoggedIn: boolean;
     stores: NavItem[];
+    isAdmin: boolean;
 }) {
     const pathname = usePathname();
     const searchParams = useSearchParams();
@@ -128,6 +131,20 @@ export default function Sidebar({
                         <HelpCircle size={18} />
                         Help
                     </Link>
+
+                    {isAdmin && (
+                        <Link
+                            href="/dashboard/demo-data"
+                            className={`flex items-center gap-3 px-3 py-2 rounded-md transition ${
+                                isActiveLink("/dashboard/demo-data")
+                                    ? "bg-white shadow-sm text-gray-900 font-medium"
+                                    : "text-gray-600 hover:bg-white hover:shadow-sm hover:text-blue-600"
+                            }`}
+                        >
+                            <Database size={18} />
+                            Demo Data
+                        </Link>
+                    )}
 
                     <Link
                         href="#"

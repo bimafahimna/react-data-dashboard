@@ -7,37 +7,150 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  USER
+  ADMIN
+}
+
 model User {
   id        String   @id @default(uuid())
   accountId Int      @unique @default(autoincrement())
   fullName  String
   email     String   @unique
-  password  String
+  password  String?
+  googleId  String?  @unique
+  avatarUrl String?
+  role      Role     @default(USER)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  posts     Store[]
+  stores    Store[]
 }
 
 model Store {
-  id        Int       @id @default(autoincrement())
-  name      String
-  location  String
-  owner     User      @relation(fields: [ownerId], references: [accountId])
-  ownerId   Int
-  products  Product[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id           Int                 @id @default(autoincrement())
+  name         String
+  location     String
+  baseCurrency String              @default("USD")
+  owner        User                @relation(fields: [ownerId], references: [accountId])
+  ownerId      Int
+  products     Product[]
+  orders       Order[]
+  inventory    InventoryMovement[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([ownerId])
+}
+
+model Category {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  products Product[]
 }
 
 model Product {
-  id        Int      @id @default(autoincrement())
-  name      String
-  category  String
-  revenue   Int
-  orders    Int
-  growth    Float
-  store     Store    @relation(fields: [storeId], references: [id])
-  storeId   Int
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             Int                 @id @default(autoincrement())
+  sku            String              @unique
+  name           String
+  category       Category            @relation(fields: [categoryId], references: [id])
+  categoryId     Int
+  store          Store               @relation(fields: [storeId], references: [id])
+  storeId        Int
+  unitPriceCents Int
+  reorderPoint   Int                 @default(0)
+  orderItems     OrderItem[]
+  movements      InventoryMovement[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@index([storeId])
+  @@index([categoryId])
+}
+
+model Customer {
+  id           Int       @id @default(autoincrement())
+  email        String    @unique
+  fullName     String?
+  firstOrderAt DateTime?
+  orders       Order[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  REFUNDED
+  CANCELLED
+}
+
+model Order {
+  id         Int         @id @default(autoincrement())
+  store      Store       @relation(fields: [storeId], references: [id])
+  storeId    Int
+  customer   Customer?   @relation(fields: [customerId], references: [id])
+  customerId Int?
+  status     OrderStatus @default(PENDING)
+  currency   String
+  totalCents Int
+  placedAt   DateTime    @default(now())
+  paidAt     DateTime?
+  refundedAt DateTime?
+  items      OrderItem[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([storeId, status, placedAt])
+  @@index([customerId])
+  @@index([placedAt])
+}
+
+model OrderItem {
+  id             Int      @id @default(autoincrement())
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId        Int
+  product        Product  @relation(fields: [productId], references: [id])
+  productId      Int
+  quantity       Int
+  unitPriceCents Int
+  subtotalCents  Int
+  createdAt      DateTime @default(now())
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+enum InventoryReason {
+  PURCHASE
+  SALE
+  ADJUSTMENT
+  RETURN
+}
+
+model InventoryMovement {
+  id         Int             @id @default(autoincrement())
+  store      Store           @relation(fields: [storeId], references: [id])
+  storeId    Int
+  product    Product         @relation(fields: [productId], references: [id])
+  productId  Int
+  delta      Int
+  reason     InventoryReason
+  orderId    Int?
+  note       String?
+  occurredAt DateTime        @default(now())
+
+  @@index([storeId, productId, occurredAt])
+  @@index([occurredAt])
+}
+
+model FxRate {
+  id            Int      @id @default(autoincrement())
+  baseCurrency  String
+  quoteCurrency String
+  rate          Decimal  @db.Decimal(18, 8)
+  asOf          DateTime
+  createdAt     DateTime @default(now())
+
+  @@unique([baseCurrency, quoteCurrency, asOf])
+  @@index([baseCurrency, quoteCurrency, asOf])
 }
