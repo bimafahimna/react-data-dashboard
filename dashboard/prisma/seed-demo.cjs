@@ -1,5 +1,14 @@
 /**
- * Demo seed for the dashboard. See docs/superpowers/specs/2026-07-01-demo-seed-script-design.md.
+ * Demo seed for the dashboard. See docs/superpowers/specs/2026-07-01-demo-seed-script-design.md
+ * for the original design and docs/superpowers/specs/2026-08-01-dashboard-kpis-v2-design.md
+ * for the KPI v2 dataset requirements (YoY comparisons + per-store matrix).
+ *
+ * Dataset shape (v2):
+ *   - 18 months (WINDOW_DAYS = 540) of daily activity so the "vs last year" chip
+ *     has real data for the daily / weekly / monthly range presets.
+ *   - A "legacy" customer cohort with firstOrderAt forced to well before the
+ *     window so Repeat-customer metrics are non-empty in every range.
+ *   - Three stores in three currencies so per-store matrix + FX both exercise.
  *
  * Usage:
  *   node prisma/seed-demo.cjs           # clear + reseed (default)
@@ -92,11 +101,17 @@ async function chunked(arr, size, fn) {
 
 // ---------- Constants -------------------------------------------------------
 
-const DEMO_TAG = "demo-seed-v1";
-const DEMO_TAG_CORRECTIVE = "demo-seed-v1 corrective";
-const DEMO_TAG_PREFIX = "demo-seed-v1"; // used with LIKE for --clear
+const DEMO_TAG = "demo-seed-v2";
+const DEMO_TAG_CORRECTIVE = "demo-seed-v2 corrective";
+// Matches both v1 and v2 tagged rows so `--clear` cleans up any older seeded
+// data when someone upgrades to the KPI v2 dataset.
+const DEMO_TAG_PREFIX = "demo-seed-v";
 
-const WINDOW_DAYS = 92;
+// 18 months of daily activity. Sized to comfortably cover:
+//   daily   (7 days)   + YoY window one year ago
+//   weekly  (8 weeks)  + YoY window one year ago
+//   monthly (6 months) + YoY window one year ago
+const WINDOW_DAYS = 540;
 
 const DEMO_CURRENCIES = ["USD", "EUR", "GBP", "JPY", "IDR"];
 
@@ -109,10 +124,13 @@ const USD_ANCHORS = {
   IDR: 16200.0,
 };
 
+// baseOrdersPerDay is tuned so the full 540-day reseed completes inside the
+// Prisma transaction budget on a local Postgres. Bump these back up (and the
+// transaction timeout below) if you're running against a beefier database.
 const STORES = [
-  { code: "JKT", name: "Demo — Jakarta Flagship", location: "Jakarta", baseCurrency: "IDR", baseOrdersPerDay: 10 },
-  { code: "BER", name: "Demo — Berlin Outlet",   location: "Berlin",   baseCurrency: "EUR", baseOrdersPerDay: 7  },
-  { code: "NYC", name: "Demo — NYC Showroom",    location: "New York", baseCurrency: "USD", baseOrdersPerDay: 9  },
+  { code: "JKT", name: "Demo — Jakarta Flagship", location: "Jakarta", baseCurrency: "IDR", baseOrdersPerDay: 6 },
+  { code: "BER", name: "Demo — Berlin Outlet",   location: "Berlin",   baseCurrency: "EUR", baseOrdersPerDay: 4 },
+  { code: "NYC", name: "Demo — NYC Showroom",    location: "New York", baseCurrency: "USD", baseOrdersPerDay: 5 },
 ];
 
 const CATEGORIES = ["Apparel", "Footwear", "Accessories", "Electronics", "Home"];
@@ -149,9 +167,23 @@ const ORDER_STATUS_MIX = [
   { status: "CANCELLED", weight: 1  },
 ];
 
-/** 90 total customers; first 25 are the "repeat" pool. */
-const NUM_CUSTOMERS = 90;
-const REPEAT_POOL_SIZE = 25;
+/**
+ * Customer cohort layout (indices into the customers array):
+ *   [0, LEGACY_POOL_SIZE)                        → legacy: firstOrderAt is forced
+ *                                                   to before the window so they
+ *                                                   always count as Repeat.
+ *   [0, REPEAT_POOL_SIZE)                        → repeat pool used by the 70%
+ *                                                   heavy-user draw (superset of
+ *                                                   the legacy pool).
+ *   [REPEAT_POOL_SIZE, NUM_CUSTOMERS)            → tail: uniform draws, firstOrderAt
+ *                                                   lands wherever their earliest
+ *                                                   in-window order happens to be.
+ * The larger customer pool keeps New/Repeat counts non-empty across an 18-month
+ * window instead of every customer being classified as Repeat by month 4.
+ */
+const NUM_CUSTOMERS = 240;
+const REPEAT_POOL_SIZE = 60;
+const LEGACY_POOL_SIZE = 15;
 const REPEAT_PROBABILITY = 0.7;
 
 const CUSTOMER_FIRST_NAMES = [
@@ -163,6 +195,143 @@ const CUSTOMER_LAST_NAMES = [
   "Nguyen", "García", "Kim", "Patel", "Silva", "Cohen", "Okafor", "Yamamoto", "Andersson",
   "Rossi", "Müller", "Dubois", "Ivanov", "Sato", "Rahman", "O'Neill", "Costa", "Fischer",
 ];
+
+// ---------- Row-count budget (DB-wide cap) ---------------------------------
+
+const PRODUCTS_PER_STORE =
+  PRODUCT_PROFILE.TOP.perStore +
+  PRODUCT_PROFILE.HEALTHY.perStore +
+  PRODUCT_PROFILE.LOW.perStore +
+  PRODUCT_PROFILE.CRITICAL.perStore; // = 10
+const AVG_ITEMS_PER_ORDER = 2.5; // midpoint of the 1..4-line range
+const RETURN_PROBABILITY = 0.05;
+
+/**
+ * Predicts how many rows one full reseed (or one "Add batch" on a fresh DB)
+ * will insert. The projection uses steady-state means from the RNG's own
+ * distributions, so it is:
+ *
+ *   1. Deterministic w.r.t. the compile-time constants (no PRNG state).
+ *   2. Always an over-estimate rather than an under-estimate (weekend spikes,
+ *      shrinkage adjustments, corrective row, and legacy backfill are all
+ *      counted at their maximum weight).
+ *
+ * Returned as a whole number to make arithmetic and env comparison friendly.
+ */
+function projectedBatchRows() {
+  const totalBasePerDay = STORES.reduce((sum, s) => sum + s.baseOrdersPerDay, 0);
+  // weekday factor mean ~= (5*1 + 1*1.15 + 1*1.35)/7 ≈ 1.07;
+  // seasonality mean 1.125; noise mean 1.0. Round up to 1.25 for headroom.
+  const meanOrdersPerDay = totalBasePerDay * 1.25;
+  const orders = Math.ceil(WINDOW_DAYS * meanOrdersPerDay);
+  const items = Math.ceil(orders * AVG_ITEMS_PER_ORDER);
+
+  const totalProducts = STORES.length * PRODUCTS_PER_STORE;
+  // Restock cadence: TOP every 14d, HEALTHY every 21d. Combined per-store:
+  //   2 * (WINDOW_DAYS/14) + 5 * (WINDOW_DAYS/21).
+  // LOW+CRITICAL each get one early restock (3 per store total).
+  const restocksPerStore =
+    2 * Math.ceil(WINDOW_DAYS / 14) +
+    5 * Math.ceil(WINDOW_DAYS / 21) +
+    3;
+  const restocks = restocksPerStore * STORES.length;
+  const returns = Math.ceil(items * RETURN_PROBABILITY);
+  const openings = totalProducts;
+  const correctives = totalProducts;
+  const shrinkage = Math.ceil(totalProducts * 0.03);
+  const movements = openings + items + restocks + returns + correctives + shrinkage;
+
+  const fxPairs = DEMO_CURRENCIES.length * (DEMO_CURRENCIES.length - 1);
+  const fxRates = fxPairs * WINDOW_DAYS;
+
+  return (
+    STORES.length +
+    totalProducts +
+    NUM_CUSTOMERS +
+    orders +
+    items +
+    movements +
+    fxRates
+  );
+}
+
+const DEFAULT_MAX_TOTAL_ROWS = 3 * projectedBatchRows();
+
+/**
+ * Reads SEED_MAX_TOTAL_ROWS from the environment.
+ *
+ *   unset / empty / "0" → default (3 × projectedBatchRows())
+ *   positive integer     → that value
+ *   "unlimited" / "none" → Number.POSITIVE_INFINITY (opt out)
+ *   anything else        → throws
+ *
+ * `envOverride` lets callers (and tests) inject the value without touching
+ * process.env.
+ */
+function resolveMaxTotalRows(envOverride) {
+  const raw = envOverride === undefined ? process.env.SEED_MAX_TOTAL_ROWS : envOverride;
+  if (raw == null || raw === "" || raw === "0") return DEFAULT_MAX_TOTAL_ROWS;
+  const lower = String(raw).trim().toLowerCase();
+  if (lower === "unlimited" || lower === "none" || lower === "off") {
+    return Number.POSITIVE_INFINITY;
+  }
+  const n = Number(raw);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) {
+    throw new Error(
+      `SEED_MAX_TOTAL_ROWS must be a non-negative integer, "unlimited", or unset (got "${raw}").`,
+    );
+  }
+  return n;
+}
+
+/**
+ * Sums all demo-tagged rows across the entire database (all owners),
+ * using the same predicates that `clearDemo` uses to identify demo data.
+ *
+ * Returns { total, byTable: { ... } } so callers can display or log breakdowns.
+ * Runs the seven counts in parallel.
+ */
+async function countDemoRows(prisma) {
+  const [
+    inventoryMovements,
+    orderItems,
+    orders,
+    products,
+    customers,
+    stores,
+    fxRates,
+  ] = await Promise.all([
+    prisma.inventoryMovement.count({
+      where: { note: { startsWith: DEMO_TAG_PREFIX } },
+    }),
+    prisma.orderItem.count({
+      where: { order: { customer: { email: { endsWith: "@demo.seed" } } } },
+    }),
+    prisma.order.count({
+      where: { customer: { email: { endsWith: "@demo.seed" } } },
+    }),
+    prisma.product.count({ where: { sku: { startsWith: "DEMO-" } } }),
+    prisma.customer.count({ where: { email: { endsWith: "@demo.seed" } } }),
+    prisma.store.count({ where: { name: { startsWith: "Demo — " } } }),
+    prisma.fxRate.count({
+      where: {
+        baseCurrency: { in: DEMO_CURRENCIES },
+        quoteCurrency: { in: DEMO_CURRENCIES },
+      },
+    }),
+  ]);
+  const byTable = {
+    inventoryMovements,
+    orderItems,
+    orders,
+    products,
+    customers,
+    stores,
+    fxRates,
+  };
+  const total = Object.values(byTable).reduce((a, b) => a + b, 0);
+  return { total, byTable };
+}
 
 // ---------- Argv / env parsing ----------------------------------------------
 
@@ -416,13 +585,27 @@ async function seedCustomers(prisma, customers) {
 /**
  * After orders are generated, backfill each customer's earliest placedAt as
  * firstOrderAt. Called once at the end of order generation.
+ *
+ * The first LEGACY_POOL_SIZE customers get a synthetic firstOrderAt from
+ * `legacyFirstOrderAt` (well before the window) so they always count as
+ * Repeat regardless of which range the dashboard is viewing.
  */
-async function backfillFirstOrderAt(prisma, customers, orders) {
+async function backfillFirstOrderAt(prisma, customers, orders, rng, now) {
   const earliestByCustomerId = new Map();
   for (const o of orders) {
     const cur = earliestByCustomerId.get(o.customerId);
     if (!cur || o.placedAt < cur) earliestByCustomerId.set(o.customerId, o.placedAt);
   }
+
+  // Force the legacy cohort's firstOrderAt to sit safely before every seeded
+  // in-window order. Range: [WINDOW_DAYS + 180, WINDOW_DAYS + 730] days ago.
+  for (let i = 0; i < Math.min(LEGACY_POOL_SIZE, customers.length); i++) {
+    const c = customers[i];
+    const daysBack = WINDOW_DAYS + randInt(rng, 180, 730);
+    const legacy = new Date(now.getTime() - daysBack * 86400000);
+    earliestByCustomerId.set(c.id, legacy);
+  }
+
   await chunked(Array.from(earliestByCustomerId.entries()), 100, async (batch) => {
     await Promise.all(
       batch.map(([customerId, firstOrderAt]) =>
@@ -844,6 +1027,15 @@ module.exports = {
   parseArgs, computeCorrectiveMovements, assertInventoryInvariants,
   buildFxRates,
   runSeedDemo,
+  projectedBatchRows,
+  resolveMaxTotalRows,
+  countDemoRows,
+  DEFAULT_MAX_TOTAL_ROWS,
+  WINDOW_DAYS,
+  DEMO_CURRENCIES,
+  NUM_CUSTOMERS,
+  REPEAT_POOL_SIZE,
+  LEGACY_POOL_SIZE,
 };
 
 // Auto-run only when invoked directly (not when required by tests / server actions).
@@ -882,7 +1074,7 @@ if (require.main === module) {
  *                                   while remaining deterministic per call.
  * @returns {Promise<Object>} summary; see docs/superpowers/specs/2026-07-02-admin-demo-data-tool-design.md §3.
  */
-async function runSeedDemo({ prisma, mode, seedSuffix }) {
+async function runSeedDemo({ prisma, mode, seedSuffix, maxTotalRows }) {
   if (mode !== "reseed" && mode !== "keep" && mode !== "clear") {
     throw new Error(`runSeedDemo: unknown mode "${mode}"`);
   }
@@ -893,14 +1085,38 @@ async function runSeedDemo({ prisma, mode, seedSuffix }) {
     (process.env.SEED_RANDOM_SEED || "react-dashboard-demo") +
     (seedSuffix ? `-${seedSuffix}` : "");
 
+  const projected = projectedBatchRows();
+  const max = maxTotalRows === undefined ? resolveMaxTotalRows() : maxTotalRows;
+  const maxOrNull = Number.isFinite(max) ? max : null;
+
   const owner = await resolveOwner(prisma);
   console.log(`Owner: ${owner.email} (accountId=${owner.accountId})`);
   console.log(`Seed string: "${seedString}"`);
+
+  // Snapshot the total demo footprint before we do anything. Used to (a)
+  // decide whether to run and (b) report before/after in the summary.
+  const demoRowsBefore = (await countDemoRows(prisma)).total;
+
+  if (flags.keep) {
+    // "Add batch" is the only path that grows the DB, so it's the only path
+    // that needs a preflight guard. Reseed clears first, then inserts one
+    // batch, which fits by construction (default max = 3 × batch).
+    if (demoRowsBefore + projected > max) {
+      const capLabel = Number.isFinite(max) ? max.toLocaleString() : "unlimited";
+      throw new Error(
+        `Demo row cap reached: ${demoRowsBefore.toLocaleString()} demo rows already ` +
+          `in the database and the next batch would add ~${projected.toLocaleString()} more ` +
+          `(cap = ${capLabel}). Run --clear (or the "Remove all demo data" button) first, ` +
+          `or raise SEED_MAX_TOTAL_ROWS.`,
+      );
+    }
+  }
 
   let clearedCounts = null;
   if (!flags.keep) {
     clearedCounts = await clearDemo(prisma);
   }
+
   if (flags.clear) {
     console.log("Clear-only mode: done.");
     return {
@@ -918,6 +1134,12 @@ async function runSeedDemo({ prisma, mode, seedSuffix }) {
         fxRates: clearedCounts.fxRates,
       },
       inserted: null,
+      capacity: {
+        demoRowsBefore,
+        demoRowsAfter: 0,
+        projectedBatchRows: projected,
+        maxTotalRows: maxOrNull,
+      },
       _extra: null,
     };
   }
@@ -961,7 +1183,7 @@ async function runSeedDemo({ prisma, mode, seedSuffix }) {
         allItems.push(...items);
       }
       await seedOrders(tx, allOrders, allItems, productBySku);
-      await backfillFirstOrderAt(tx, customers, allOrders);
+      await backfillFirstOrderAt(tx, customers, allOrders, rng, now);
 
       // Build inventory movements from sales.
       // For each product, gather its sales (with placedAt + orderId + status).
@@ -1019,7 +1241,7 @@ async function runSeedDemo({ prisma, mode, seedSuffix }) {
         to: now,
       };
     },
-    { timeout: 120_000, maxWait: 10_000 }
+    { timeout: 300_000, maxWait: 15_000 }
   );
 
   return {
@@ -1047,6 +1269,24 @@ async function runSeedDemo({ prisma, mode, seedSuffix }) {
       inventoryMovements: stats.movements,
       fxRates: stats.fxRates,
     },
+    capacity: {
+      demoRowsBefore,
+      // For reseed: clear ran, so "before" for the write phase is really 0.
+      // Reported "after" = what we just inserted. For keep: additive delta on
+      // top of the pre-existing count (skipDuplicates makes stores/products/
+      // customers/fx effectively zero-net, so we count only the growth rows).
+      demoRowsAfter: flags.keep
+        ? demoRowsBefore + stats.orders + stats.orderItems + stats.movements
+        : stats.stores +
+          stats.products +
+          stats.customers +
+          stats.orders +
+          stats.orderItems +
+          stats.movements +
+          stats.fxRates,
+      projectedBatchRows: projected,
+      maxTotalRows: maxOrNull,
+    },
     _extra: {
       productsByProfile: stats.productsByProfile,
       ordersByStatus: stats.ordersByStatus,
@@ -1068,6 +1308,15 @@ function countByStatus(orders) {
   return c;
 }
 
+function formatCapacityLine(cap) {
+  if (!cap) return null;
+  const before = cap.demoRowsBefore.toLocaleString();
+  const after = cap.demoRowsAfter.toLocaleString();
+  const cap_ = cap.maxTotalRows == null ? "unlimited" : cap.maxTotalRows.toLocaleString();
+  const projected = cap.projectedBatchRows.toLocaleString();
+  return `  Capacity:    ${before} → ${after} of ${cap_} demo rows (batch projection: ${projected})`;
+}
+
 function printSummary(summary) {
   const elapsedSec = (summary.durationMs / 1000).toFixed(1);
   if (summary.mode === "clear") {
@@ -1076,8 +1325,11 @@ function printSummary(summary) {
     console.log(
       `  Cleared: movements=${c.inventoryMovements}, orderItems=${c.orderItems}, ` +
         `orders=${c.orders}, products=${c.products}, customers=${c.customers}, ` +
-        `stores=${c.stores}, fxRates=${c.fxRates}\n`
+        `stores=${c.stores}, fxRates=${c.fxRates}`
     );
+    const capLine = formatCapacityLine(summary.capacity);
+    if (capLine) console.log(capLine);
+    console.log();
     return;
   }
   const s = summary.inserted;
@@ -1091,7 +1343,10 @@ function printSummary(summary) {
       `(${extra.productsByProfile.TOP} top-sellers, ${extra.productsByProfile.LOW} LOW, ` +
       `${extra.productsByProfile.CRITICAL} CRITICAL, ${extra.productsByProfile.HEALTHY} healthy)`
   );
-  console.log(`  Customers:   ${s.customers}  (~${REPEAT_POOL_SIZE} repeat)`);
+  console.log(
+    `  Customers:   ${s.customers}  ` +
+      `(${REPEAT_POOL_SIZE} repeat pool, ${LEGACY_POOL_SIZE} legacy pre-window)`
+  );
   console.log(
     `  Orders:      ${s.orders}  ` +
       `(PAID ${extra.ordersByStatus.PAID} / PENDING ${extra.ordersByStatus.PENDING} / ` +
@@ -1104,7 +1359,10 @@ function printSummary(summary) {
       `(${DEMO_CURRENCIES.length}x${DEMO_CURRENCIES.length - 1} pairs x ${WINDOW_DAYS} days)`
   );
   console.log(
-    `  Window:      ${extra.window.from.toISOString().slice(0, 10)} -> ${extra.window.to.toISOString().slice(0, 10)}\n`
+    `  Window:      ${extra.window.from.toISOString().slice(0, 10)} -> ${extra.window.to.toISOString().slice(0, 10)}`
   );
+  const capLine = formatCapacityLine(summary.capacity);
+  if (capLine) console.log(capLine);
+  console.log();
   console.log("Open http://localhost:3000/dashboard to verify.");
 }

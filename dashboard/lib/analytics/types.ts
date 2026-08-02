@@ -20,8 +20,39 @@ export type Direction = "up" | "down" | "flat";
 export interface Delta<T = number> {
   current: T;
   previous: T;
+  changeNominal: number;
   changePct: number;
   direction: Direction;
+}
+
+export interface KpiSummary {
+  current: number;
+  deltaPrev: Delta;
+  deltaYoy: Delta;
+}
+
+export interface DashboardKpis {
+  revenue: KpiSummary;
+  orders: KpiSummary;
+  uniqueCustomers: KpiSummary;
+  aov: KpiSummary;
+  newCustomers: KpiSummary;
+  repeatCustomers: KpiSummary;
+  itemsSold: KpiSummary;
+}
+
+export interface PerStoreKpiRow {
+  storeId: number;
+  storeName: string;
+  location: string;
+  baseCurrency: string;
+  revenue: number;
+  orders: number;
+  uniqueCustomers: number;
+  aov: number;
+  newCustomers: number;
+  repeatCustomers: number;
+  itemsSold: number;
 }
 
 export const RANGE_TO_BUCKET: Record<Range, Bucket> = {

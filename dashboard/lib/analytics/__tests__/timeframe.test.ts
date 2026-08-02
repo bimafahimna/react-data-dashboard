@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveWindow, buildDelta } from "../timeframe";
+import { resolveWindow, buildDelta, shiftYearsUtc } from "../timeframe";
 
 describe("resolveWindow", () => {
   const now = new Date(Date.UTC(2026, 5, 29, 12, 0, 0)); // Mon Jun 29 2026 12:00 UTC
@@ -47,20 +47,85 @@ describe("resolveWindow", () => {
 });
 
 describe("buildDelta", () => {
-  it("computes percentage change and direction", () => {
+  it("computes percentage change, nominal delta, and direction (up)", () => {
     expect(buildDelta(120, 100)).toEqual({
-      current: 120, previous: 100, changePct: 20, direction: "up",
+      current: 120,
+      previous: 100,
+      changeNominal: 20,
+      changePct: 20,
+      direction: "up",
     });
+  });
+
+  it("computes percentage change, nominal delta, and direction (down)", () => {
     expect(buildDelta(80, 100)).toEqual({
-      current: 80, previous: 100, changePct: -20, direction: "down",
+      current: 80,
+      previous: 100,
+      changeNominal: -20,
+      changePct: -20,
+      direction: "down",
     });
   });
-  it("returns flat with 0% when previous is 0", () => {
+
+  it("reports up direction with 0% when previous is 0 and current is positive", () => {
     expect(buildDelta(50, 0)).toEqual({
-      current: 50, previous: 0, changePct: 0, direction: "flat",
+      current: 50,
+      previous: 0,
+      changeNominal: 50,
+      changePct: 0,
+      direction: "up",
     });
   });
-  it("returns flat when current equals previous", () => {
-    expect(buildDelta(100, 100).direction).toBe("flat");
+
+  it("reports down direction with 0% when previous is 0 and current is negative", () => {
+    expect(buildDelta(-25, 0)).toEqual({
+      current: -25,
+      previous: 0,
+      changeNominal: -25,
+      changePct: 0,
+      direction: "down",
+    });
+  });
+
+  it("returns flat when current equals previous (both non-zero)", () => {
+    expect(buildDelta(100, 100)).toEqual({
+      current: 100,
+      previous: 100,
+      changeNominal: 0,
+      changePct: 0,
+      direction: "flat",
+    });
+  });
+
+  it("returns flat when both current and previous are 0", () => {
+    expect(buildDelta(0, 0)).toEqual({
+      current: 0,
+      previous: 0,
+      changeNominal: 0,
+      changePct: 0,
+      direction: "flat",
+    });
+  });
+});
+
+describe("shiftYearsUtc", () => {
+  it("shifts a normal date back by one year", () => {
+    const d = new Date(Date.UTC(2026, 5, 15, 0, 0, 0));
+    expect(shiftYearsUtc(d, -1).toISOString()).toBe("2025-06-15T00:00:00.000Z");
+  });
+
+  it("clamps Feb 29 to Feb 28 when shifting to a non-leap year", () => {
+    const d = new Date(Date.UTC(2028, 1, 29, 0, 0, 0));
+    expect(shiftYearsUtc(d, -1).toISOString()).toBe("2027-02-28T00:00:00.000Z");
+  });
+
+  it("preserves UTC hours/minutes/seconds/ms", () => {
+    const d = new Date(Date.UTC(2026, 5, 15, 14, 27, 33, 456));
+    expect(shiftYearsUtc(d, -1).toISOString()).toBe("2025-06-15T14:27:33.456Z");
+  });
+
+  it("supports positive year shifts", () => {
+    const d = new Date(Date.UTC(2026, 0, 1, 0, 0, 0));
+    expect(shiftYearsUtc(d, 2).toISOString()).toBe("2028-01-01T00:00:00.000Z");
   });
 });

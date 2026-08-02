@@ -9,6 +9,8 @@ import { DashboardFilters } from "@/components/dashboard/filters/DashboardFilter
 import { KpiRow } from "@/components/dashboard/kpi/KpiRow";
 import { PanelCard } from "@/components/dashboard/shared/PanelCard";
 import { ChartSkeleton } from "@/components/dashboard/shared/ChartSkeleton";
+import { TableSkeleton } from "@/components/dashboard/shared/TableSkeleton";
+import { PerStoreKpiTable } from "@/components/dashboard/kpi/PerStoreKpiTable";
 import { RevenueTrendChart } from "@/components/dashboard/charts/RevenueTrendChart";
 import { StoreLeaderboardChart } from "@/components/dashboard/charts/StoreLeaderboardChart";
 import { CategoryShareChart } from "@/components/dashboard/charts/CategoryShareChart";
@@ -18,6 +20,7 @@ import { TopCustomersTable } from "@/components/dashboard/tables/TopCustomersTab
 import { InventoryAlertsPanel } from "@/components/dashboard/inventory/InventoryAlertsPanel";
 
 import { getRevenueTimeSeries } from "@/lib/analytics/revenue";
+import { getPerStoreKpis } from "@/lib/analytics/kpis";
 import { getTopProducts } from "@/lib/analytics/products";
 import { getCategoryShare } from "@/lib/analytics/categories";
 import { getStoreLeaderboard } from "@/lib/analytics/stores";
@@ -57,6 +60,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       <Suspense fallback={<ChartSkeleton height={96} />}>
         <KpiRow scope={scope} />
       </Suspense>
+
+      <div className="mt-6">
+        <Suspense fallback={<TableSkeleton rows={4} columns={8} />}>
+          <PerStoreKpiPanel scope={scope} />
+        </Suspense>
+      </div>
 
       <div className="mt-6">
         <PanelCard title="Revenue trend" subtitle={`${parsed.range} view, ${currency}`}>
@@ -138,4 +147,8 @@ async function CustomerMixPanel({ scope }: { scope: AnalyticsScope }) {
 async function TopCustomersPanel({ scope }: { scope: AnalyticsScope }) {
   const rows = await getTopCustomers(scope);
   return <TopCustomersTable rows={rows} currency={scope.currency} />;
+}
+async function PerStoreKpiPanel({ scope }: { scope: AnalyticsScope }) {
+  const rows = await getPerStoreKpis(scope);
+  return <PerStoreKpiTable rows={rows} currency={scope.currency} />;
 }
