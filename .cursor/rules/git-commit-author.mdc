@@ -1,0 +1,14 @@
+---
+description: Use the user's git identity when committing; never add Cursor/agent author info
+alwaysApply: true
+---
+
+# Git Commit Author
+
+When writing commit messages or running `git commit` on the user's behalf:
+
+- Use the user's existing local git identity (`user.name` and `user.email` from `git config`). Do not override author or committer with Cursor, agent, or AI credentials.
+- Never add Cursor's username, email, or agent identity to commits — not in `--author`, not in `Co-authored-by`, not in the commit message body or trailers.
+- Do not modify `git config` to set or change user identity.
+
+If author identity is unclear, read it from local config (`git config user.name`, `git config user.email`) and proceed with a normal commit. Do not substitute an agent identity.
