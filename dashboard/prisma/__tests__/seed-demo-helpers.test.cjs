@@ -165,7 +165,7 @@ describe("computeCorrectiveMovements", () => {
     expect(corr).toHaveLength(1);
     expect(corr[0].delta).toBe(20);
     expect(corr[0].reason).toBe("PURCHASE");
-    expect(corr[0].note).toBe("demo-seed-v1 corrective");
+    expect(corr[0].note).toBe("demo-seed-v2 corrective");
   });
 
   it("emits an ADJUSTMENT when actual > target", () => {
@@ -184,15 +184,20 @@ describe("computeCorrectiveMovements", () => {
   });
 });
 
-const { buildFxRates } = require("../seed-demo.cjs");
+const {
+  buildFxRates,
+  WINDOW_DAYS,
+  DEMO_CURRENCIES,
+} = require("../seed-demo.cjs");
 
 describe("buildFxRates", () => {
   const now = new Date(Date.UTC(2026, 6, 1)); // Jul 1 2026 midnight UTC
+  const NUM_PAIRS = DEMO_CURRENCIES.length * (DEMO_CURRENCIES.length - 1); // 5*4 = 20
 
-  it("produces 20 pairs x 92 days = 1840 rows", () => {
+  it("produces N*(N-1) pairs x WINDOW_DAYS rows", () => {
     const rng = mulberry32(xfnv1a("fx"));
     const rows = buildFxRates(rng, now);
-    expect(rows).toHaveLength(20 * 92);
+    expect(rows).toHaveLength(NUM_PAIRS * WINDOW_DAYS);
   });
 
   it("every asOf is exact midnight UTC", () => {
@@ -226,28 +231,117 @@ describe("buildFxRates", () => {
   });
 });
 
-const { runSeedDemo } = require("../seed-demo.cjs");
+const {
+  runSeedDemo,
+  projectedBatchRows,
+  resolveMaxTotalRows,
+  countDemoRows,
+  DEFAULT_MAX_TOTAL_ROWS,
+} = require("../seed-demo.cjs");
+
+/**
+ * Build a Prisma stub that supports the demo-cap counting path. Callers can
+ * pass per-table counts (defaults to 0 everywhere).
+ */
+function makeStubPrisma(overrides) {
+  const noopDelete = async () => ({ count: 0 });
+  const tableCount = (key) => async () => (overrides?.counts?.[key] ?? 0);
+  return {
+    inventoryMovement: { deleteMany: noopDelete, count: tableCount("inventoryMovements") },
+    orderItem: { count: tableCount("orderItems") },
+    order: { deleteMany: noopDelete, count: tableCount("orders") },
+    product: { deleteMany: noopDelete, count: tableCount("products") },
+    customer: { deleteMany: noopDelete, count: tableCount("customers") },
+    store: { deleteMany: noopDelete, count: tableCount("stores") },
+    fxRate: { count: tableCount("fxRates") },
+    user: { findFirst: async () => ({ accountId: 1, email: "stub@example.com" }) },
+    $executeRaw: async () => 0,
+  };
+}
+
+describe("projectedBatchRows", () => {
+  it("returns a positive integer bounded above zero", () => {
+    const n = projectedBatchRows();
+    expect(Number.isInteger(n)).toBe(true);
+    expect(n).toBeGreaterThan(0);
+  });
+
+  it("is stable across calls (pure function of module constants)", () => {
+    expect(projectedBatchRows()).toBe(projectedBatchRows());
+  });
+});
+
+describe("resolveMaxTotalRows", () => {
+  it("returns 3× the projected batch as the default", () => {
+    expect(resolveMaxTotalRows(undefined)).toBe(DEFAULT_MAX_TOTAL_ROWS);
+    expect(DEFAULT_MAX_TOTAL_ROWS).toBe(3 * projectedBatchRows());
+  });
+
+  it("treats empty string, null, and '0' as default", () => {
+    expect(resolveMaxTotalRows("")).toBe(DEFAULT_MAX_TOTAL_ROWS);
+    expect(resolveMaxTotalRows(null)).toBe(DEFAULT_MAX_TOTAL_ROWS);
+    expect(resolveMaxTotalRows("0")).toBe(DEFAULT_MAX_TOTAL_ROWS);
+  });
+
+  it("accepts positive integers verbatim", () => {
+    expect(resolveMaxTotalRows("42")).toBe(42);
+    expect(resolveMaxTotalRows("1000000")).toBe(1_000_000);
+  });
+
+  it("returns Infinity for 'unlimited' / 'none' / 'off' (case-insensitive)", () => {
+    expect(resolveMaxTotalRows("unlimited")).toBe(Number.POSITIVE_INFINITY);
+    expect(resolveMaxTotalRows("Unlimited")).toBe(Number.POSITIVE_INFINITY);
+    expect(resolveMaxTotalRows("none")).toBe(Number.POSITIVE_INFINITY);
+    expect(resolveMaxTotalRows("OFF")).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  it("throws on garbage input", () => {
+    expect(() => resolveMaxTotalRows("nope")).toThrow(/non-negative integer/);
+    expect(() => resolveMaxTotalRows("-5")).toThrow(/non-negative integer/);
+    expect(() => resolveMaxTotalRows("3.5")).toThrow(/non-negative integer/);
+  });
+});
+
+describe("countDemoRows", () => {
+  it("sums all seven tables in parallel", async () => {
+    const prisma = makeStubPrisma({
+      counts: {
+        inventoryMovements: 100,
+        orderItems: 50,
+        orders: 20,
+        products: 30,
+        customers: 240,
+        stores: 3,
+        fxRates: 1840,
+      },
+    });
+    const { total, byTable } = await countDemoRows(prisma);
+    expect(byTable).toEqual({
+      inventoryMovements: 100,
+      orderItems: 50,
+      orders: 20,
+      products: 30,
+      customers: 240,
+      stores: 3,
+      fxRates: 1840,
+    });
+    expect(total).toBe(100 + 50 + 20 + 30 + 240 + 3 + 1840);
+  });
+
+  it("returns zeros for a fresh DB", async () => {
+    const { total, byTable } = await countDemoRows(makeStubPrisma());
+    expect(total).toBe(0);
+    for (const v of Object.values(byTable)) expect(v).toBe(0);
+  });
+});
 
 describe("runSeedDemo", () => {
   it("is exported as a function", () => {
     expect(typeof runSeedDemo).toBe("function");
   });
 
-  it("mode: 'clear' returns a summary with populated cleared and null inserted", async () => {
-    // Stub Prisma: every deleteMany returns { count: 0 }, count returns 0,
-    // $executeRaw returns 0, user.findFirst returns a fake owner.
-    const noopDelete = async () => ({ count: 0 });
-    const stubPrisma = {
-      inventoryMovement: { deleteMany: noopDelete },
-      orderItem: { count: async () => 0 },
-      order: { deleteMany: noopDelete },
-      product: { deleteMany: noopDelete },
-      customer: { deleteMany: noopDelete },
-      store: { deleteMany: noopDelete },
-      user: { findFirst: async () => ({ accountId: 1, email: "stub@example.com" }) },
-      $executeRaw: async () => 0,
-    };
-
+  it("mode: 'clear' returns a summary with populated cleared, null inserted, and capacity", async () => {
+    const stubPrisma = makeStubPrisma();
     const summary = await runSeedDemo({ prisma: stubPrisma, mode: "clear" });
 
     expect(summary.mode).toBe("clear");
@@ -255,7 +349,6 @@ describe("runSeedDemo", () => {
     expect(typeof summary.durationMs).toBe("number");
     expect(typeof summary.seedString).toBe("string");
     expect(summary.seedString.length).toBeGreaterThan(0);
-    expect(summary.cleared).not.toBeNull();
     expect(summary.cleared).toEqual({
       inventoryMovements: 0,
       orderItems: 0,
@@ -266,21 +359,15 @@ describe("runSeedDemo", () => {
       fxRates: 0,
     });
     expect(summary.inserted).toBeNull();
+    expect(summary.capacity).toBeTruthy();
+    expect(summary.capacity.demoRowsBefore).toBe(0);
+    expect(summary.capacity.demoRowsAfter).toBe(0);
+    expect(summary.capacity.projectedBatchRows).toBe(projectedBatchRows());
+    expect(summary.capacity.maxTotalRows).toBe(DEFAULT_MAX_TOTAL_ROWS);
   });
 
   it("seedSuffix is appended to seedString", async () => {
-    const noopDelete = async () => ({ count: 0 });
-    const stubPrisma = {
-      inventoryMovement: { deleteMany: noopDelete },
-      orderItem: { count: async () => 0 },
-      order: { deleteMany: noopDelete },
-      product: { deleteMany: noopDelete },
-      customer: { deleteMany: noopDelete },
-      store: { deleteMany: noopDelete },
-      user: { findFirst: async () => ({ accountId: 1, email: "stub@example.com" }) },
-      $executeRaw: async () => 0,
-    };
-
+    const stubPrisma = makeStubPrisma();
     const a = await runSeedDemo({ prisma: stubPrisma, mode: "clear", seedSuffix: "abc" });
     const b = await runSeedDemo({ prisma: stubPrisma, mode: "clear", seedSuffix: "xyz" });
     expect(a.seedString.endsWith("-abc")).toBe(true);
@@ -290,5 +377,36 @@ describe("runSeedDemo", () => {
 
   it("throws on unknown mode", async () => {
     await expect(runSeedDemo({ prisma: {}, mode: "bogus" })).rejects.toThrow(/unknown mode/i);
+  });
+
+  it("keep mode: throws when current + projected would exceed the cap", async () => {
+    // Simulate a DB that's already almost at the cap.
+    const projected = projectedBatchRows();
+    const cap = 2 * projected;
+    const stubPrisma = makeStubPrisma({ counts: { orders: cap - Math.floor(projected / 2) } });
+
+    await expect(
+      runSeedDemo({ prisma: stubPrisma, mode: "keep", maxTotalRows: cap }),
+    ).rejects.toThrow(/Demo row cap reached/);
+  });
+
+  it("keep mode: cap message names SEED_MAX_TOTAL_ROWS as the escape hatch", async () => {
+    const projected = projectedBatchRows();
+    const stubPrisma = makeStubPrisma({ counts: { orders: projected * 5 } });
+    await expect(
+      runSeedDemo({ prisma: stubPrisma, mode: "keep", maxTotalRows: projected }),
+    ).rejects.toThrow(/SEED_MAX_TOTAL_ROWS/);
+  });
+
+  it("keep mode: unlimited cap never blocks the run (guard passes)", async () => {
+    // We can't run the whole $transaction here (no real prisma), but if the
+    // cap check would fire it fires before the tx opens. Confirm it doesn't
+    // fire by observing that the failure now comes from the missing tx impl,
+    // not from the cap.
+    const projected = projectedBatchRows();
+    const stubPrisma = makeStubPrisma({ counts: { orders: projected * 1000 } });
+    await expect(
+      runSeedDemo({ prisma: stubPrisma, mode: "keep", maxTotalRows: Number.POSITIVE_INFINITY }),
+    ).rejects.not.toThrow(/Demo row cap reached/);
   });
 });

@@ -36,6 +36,14 @@ function formatInserted(i: NonNullable<SeedSummary["inserted"]>): string {
   );
 }
 
+function formatCapacity(cap: SeedSummary["capacity"]): string {
+  const capLabel = cap.maxTotalRows == null ? "unlimited" : cap.maxTotalRows.toLocaleString();
+  return (
+    `${cap.demoRowsBefore.toLocaleString()} → ${cap.demoRowsAfter.toLocaleString()} of ${capLabel} demo rows ` +
+    `(next batch projected ~${cap.projectedBatchRows.toLocaleString()})`
+  );
+}
+
 function SummaryBlock({ summary }: { summary: SeedSummary }) {
   const secs = (summary.durationMs / 1000).toFixed(1);
   return (
@@ -63,6 +71,9 @@ function SummaryBlock({ summary }: { summary: SeedSummary }) {
           </p>
         </>
       )}
+      <p className="mt-1">
+        <span className="font-medium">Capacity:</span> {formatCapacity(summary.capacity)}.
+      </p>
       {summary.mode !== "clear" && (
         <p className="mt-1 text-xs text-emerald-800">
           Seed: <code className="rounded bg-emerald-100 px-1 py-0.5">{summary.seedString}</code>

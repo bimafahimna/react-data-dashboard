@@ -1,5 +1,25 @@
 import { Bucket, Delta, Range, RANGE_TO_BUCKET, Direction } from "./types";
 
+export function shiftYearsUtc(d: Date, years: number): Date {
+  const y = d.getUTCFullYear() + years;
+  const m = d.getUTCMonth();
+  const day = d.getUTCDate();
+  // Clamp day so e.g. Feb 29 -> Feb 28 in non-leap targets.
+  const lastDayOfTargetMonth = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  const clampedDay = Math.min(day, lastDayOfTargetMonth);
+  return new Date(
+    Date.UTC(
+      y,
+      m,
+      clampedDay,
+      d.getUTCHours(),
+      d.getUTCMinutes(),
+      d.getUTCSeconds(),
+      d.getUTCMilliseconds(),
+    ),
+  );
+}
+
 export interface ResolvedWindow {
   from: Date;
   to: Date;
@@ -77,19 +97,13 @@ export function resolveWindow(
 }
 
 export function buildDelta(current: number, previous: number): Delta {
-  if (previous === 0 || current === previous) {
-    return {
-      current,
-      previous,
-      changePct: 0,
-      direction: "flat" as Direction,
-    };
-  }
-  const changePct = ((current - previous) / previous) * 100;
-  return {
-    current,
-    previous,
-    changePct,
-    direction: changePct > 0 ? "up" : "down",
-  };
+  const changeNominal = current - previous;
+  let direction: Direction;
+  if (changeNominal > 0) direction = "up";
+  else if (changeNominal < 0) direction = "down";
+  else direction = "flat";
+  // When previous is 0 the percent is undefined; report 0 and rely on
+  // `previous === 0` at the call-site (or the omitted chip) to signal it.
+  const changePct = previous === 0 ? 0 : (changeNominal / previous) * 100;
+  return { current, previous, changeNominal, changePct, direction };
 }
