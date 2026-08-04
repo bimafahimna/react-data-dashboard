@@ -52,7 +52,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">Dashboard</h1>
           <p className="mt-1 text-sm text-slate-500">Live analytics across your stores.</p>
         </div>
-        <DashboardFilters stores={stores} range={parsed.range} storeId={parsed.storeId} currency={currency} />
+        <DashboardFilters
+          stores={stores}
+          range={parsed.range}
+          storeId={parsed.storeId}
+          currency={currency}
+          from={parsed.from}
+          to={parsed.to}
+        />
       </header>
 
       <Suspense fallback={<ChartSkeleton height={96} />}>
