@@ -112,7 +112,7 @@ export default async function DemoDataPage() {
         <ActionCard
           kind="replace"
           title="Replace demo data"
-          description="Wipe existing demo rows, then generate a fresh reproducible dataset (3 stores × 18 months of orders, inventory, and FX) sized to exercise year-over-year KPIs and the per-store breakdown."
+          description="Wipe existing demo rows, then generate a fresh reproducible dataset (3 stores × one full calendar year of orders, inventory, and FX, spread from January through December) sized to exercise year-over-year KPIs and the per-store breakdown."
           confirmLabel="Replace all demo data"
           buttonLabel="Replace"
           buttonTone="primary"

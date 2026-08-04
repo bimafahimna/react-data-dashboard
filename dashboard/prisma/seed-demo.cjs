@@ -4,8 +4,10 @@
  * for the KPI v2 dataset requirements (YoY comparisons + per-store matrix).
  *
  * Dataset shape (v2):
- *   - 18 months (WINDOW_DAYS = 540) of daily activity so the "vs last year" chip
- *     has real data for the daily / weekly / monthly range presets.
+ *   - One calendar year of daily activity, from Jan 1 through Dec 31 of the
+ *     year the script runs in. WINDOW_DAYS is derived from that year so it
+ *     picks up leap years automatically. The window covers past *and* future
+ *     dates within the year so ranges anywhere in Jan..Dec have data to show.
  *   - A "legacy" customer cohort with firstOrderAt forced to well before the
  *     window so Repeat-customer metrics are non-empty in every range.
  *   - Three stores in three currencies so per-store matrix + FX both exercise.
@@ -107,11 +109,16 @@ const DEMO_TAG_CORRECTIVE = "demo-seed-v2 corrective";
 // data when someone upgrades to the KPI v2 dataset.
 const DEMO_TAG_PREFIX = "demo-seed-v";
 
-// 18 months of daily activity. Sized to comfortably cover:
-//   daily   (7 days)   + YoY window one year ago
-//   weekly  (8 weeks)  + YoY window one year ago
-//   monthly (6 months) + YoY window one year ago
-const WINDOW_DAYS = 540;
+// Anchor the window to the current calendar year: Jan 1 00:00 UTC through
+// Dec 31 00:00 UTC of the year the script is loaded in. WINDOW_DAYS is the
+// count of daily buckets in that window (365 or 366). WINDOW_END acts as the
+// upper anchor for all utcMidnight(-N..0) offsets, so timestamps land inside
+// [WINDOW_START, WINDOW_END] regardless of when the script actually runs.
+const WINDOW_YEAR = new Date().getUTCFullYear();
+const WINDOW_START = new Date(Date.UTC(WINDOW_YEAR, 0, 1));
+const WINDOW_END = new Date(Date.UTC(WINDOW_YEAR, 11, 31));
+const WINDOW_DAYS =
+  Math.round((WINDOW_END.getTime() - WINDOW_START.getTime()) / 86400000) + 1;
 
 const DEMO_CURRENCIES = ["USD", "EUR", "GBP", "JPY", "IDR"];
 
@@ -124,13 +131,15 @@ const USD_ANCHORS = {
   IDR: 16200.0,
 };
 
-// baseOrdersPerDay is tuned so the full 540-day reseed completes inside the
-// Prisma transaction budget on a local Postgres. Bump these back up (and the
-// transaction timeout below) if you're running against a beefier database.
+// baseOrdersPerDay is tuned so a full-year reseed completes inside the
+// Prisma transaction budget on a local Postgres, while still producing a
+// bit more total activity than the previous 540-day dataset. Bump these
+// up (and the transaction timeout below) if you're running against a
+// beefier database.
 const STORES = [
-  { code: "JKT", name: "Demo — Jakarta Flagship", location: "Jakarta", baseCurrency: "IDR", baseOrdersPerDay: 6 },
-  { code: "BER", name: "Demo — Berlin Outlet",   location: "Berlin",   baseCurrency: "EUR", baseOrdersPerDay: 4 },
-  { code: "NYC", name: "Demo — NYC Showroom",    location: "New York", baseCurrency: "USD", baseOrdersPerDay: 5 },
+  { code: "JKT", name: "Demo — Jakarta Flagship", location: "Jakarta", baseCurrency: "IDR", baseOrdersPerDay: 10 },
+  { code: "BER", name: "Demo — Berlin Outlet",   location: "Berlin",   baseCurrency: "EUR", baseOrdersPerDay: 7  },
+  { code: "NYC", name: "Demo — NYC Showroom",    location: "New York", baseCurrency: "USD", baseOrdersPerDay: 8  },
 ];
 
 const CATEGORIES = ["Apparel", "Footwear", "Accessories", "Electronics", "Home"];
@@ -421,13 +430,13 @@ async function clearDemo(prisma) {
   // "asOf" is a timestamptz; epoch % 86400 == 0 iff it is exact UTC midnight.
   // We use Prisma.join to build a safe IN-list rather than relying on
   // tagged-template array-to-Postgres-array conversion. The date window
-  // [now - (WINDOW_DAYS + 1) days, now] bounds the delete to the demo range;
-  // combined with midnight-UTC it means we only touch rows this seed script
-  // itself could have produced.
+  // brackets the calendar-year window this seed produces, plus one day of
+  // slack on either side; combined with midnight-UTC it means we only touch
+  // rows this seed script itself could have produced.
   const { Prisma } = require("../generated/prisma");
   const ccyList = Prisma.join(DEMO_CURRENCIES);
-  const fxWindowStart = new Date(Date.now() - (WINDOW_DAYS + 1) * 86400 * 1000);
-  const fxWindowEnd = new Date();
+  const fxWindowStart = new Date(WINDOW_START.getTime() - 86400 * 1000);
+  const fxWindowEnd = new Date(WINDOW_END.getTime() + 86400 * 1000);
   const fxResult = await prisma.$executeRaw`
     DELETE FROM "FxRate"
     WHERE "baseCurrency" IN (${ccyList})
@@ -1032,6 +1041,9 @@ module.exports = {
   countDemoRows,
   DEFAULT_MAX_TOTAL_ROWS,
   WINDOW_DAYS,
+  WINDOW_YEAR,
+  WINDOW_START,
+  WINDOW_END,
   DEMO_CURRENCIES,
   NUM_CUSTOMERS,
   REPEAT_POOL_SIZE,
@@ -1144,7 +1156,10 @@ async function runSeedDemo({ prisma, mode, seedSuffix, maxTotalRows }) {
     };
   }
 
-  const now = new Date();
+  // Anchor all seeded timestamps to Dec 31 midnight UTC of the target year
+  // so the dataset spans Jan 1..Dec 31 regardless of the wall-clock time the
+  // script actually runs. Real "now" is still used for the summary's ranAt.
+  const now = WINDOW_END;
   const rng = mulberry32(xfnv1a(seedString));
 
   // Categories + stores must exist before we can reference IDs from products,

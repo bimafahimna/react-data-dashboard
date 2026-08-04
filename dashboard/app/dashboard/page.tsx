@@ -45,8 +45,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     to: window.to,
     currency,
   };
-  const prevScope: AnalyticsScope = { ...scope, from: window.previousFrom, to: window.previousTo };
-
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8 md:px-6">
       <header className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -70,7 +68,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       <div className="mt-6">
         <PanelCard title="Revenue trend" subtitle={`${parsed.range} view, ${currency}`}>
           <Suspense fallback={<ChartSkeleton />}>
-            <RevenueTrendPanel scope={scope} prevScope={prevScope} range={parsed.range} />
+            <RevenueTrendPanel scope={scope} range={parsed.range} />
           </Suspense>
         </PanelCard>
       </div>
@@ -117,12 +115,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   );
 }
 
-async function RevenueTrendPanel({ scope, prevScope, range }: { scope: AnalyticsScope; prevScope: AnalyticsScope; range: "daily" | "weekly" | "monthly" }) {
-  const [cur, prev] = await Promise.all([
-    getRevenueTimeSeries(scope, range),
-    getRevenueTimeSeries(prevScope, range),
-  ]);
-  return <RevenueTrendChart currentSeries={cur} previousSeries={prev} currency={scope.currency} />;
+async function RevenueTrendPanel({ scope, range }: { scope: AnalyticsScope; range: "daily" | "weekly" | "monthly" }) {
+  const cur = await getRevenueTimeSeries(scope, range);
+  return <RevenueTrendChart currentSeries={cur} currency={scope.currency} />;
 }
 async function StoreLeaderboardPanel({ scope }: { scope: AnalyticsScope }) {
   const rows = await getStoreLeaderboard(scope);
